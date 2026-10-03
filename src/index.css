@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #F2EAD6;
+  --color-blueprint: #16336E;
+  --color-navy: #0E1E3C;
+  --color-rocket: #F05A28;
+  --color-cyanotype: #7FD8E8;
+  --color-teal: #1F8F82;
+  --color-gold: #F2B33D;
+
+  --font-michroma: "Michroma", sans-serif;
+  --font-archivo: "Archivo", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+:root {
+  --cw-cream: #F2EAD6;
+  --cw-blueprint: #16336E;
+  --cw-navy: #0E1E3C;
+  --cw-rocket: #F05A28;
+  --cw-cyanotype: #7FD8E8;
+  --cw-teal: #1F8F82;
+  --cw-gold: #F2B33D;
+}
+
+/* Operational screens: Blueprint Blue Grid */
+.bg-blueprint-grid {
+  background-color: #16336E;
+  background-image: 
+    linear-gradient(to right, rgba(127, 216, 232, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(127, 216, 232, 0.12) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Hangar Navy Grid */
+.bg-navy-grid {
+  background-color: #0E1E3C;
+  background-image: 
+    linear-gradient(to right, rgba(127, 216, 232, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(127, 216, 232, 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Halftone Patterns: fixed dot size, never a gradient */
+.bg-halftone-cream {
+  background-color: #F2EAD6;
+  background-image: radial-gradient(rgba(14, 30, 60, 0.16) 1.5px, transparent 1.5px);
+  background-size: 10px 10px;
+}
+
+.bg-halftone-navy {
+  background-color: #0E1E3C;
+  background-image: radial-gradient(rgba(127, 216, 232, 0.18) 1.5px, transparent 1.5px);
+  background-size: 10px 10px;
+}
+
+/* Typography classes */
+.font-michroma {
+  font-family: "Michroma", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.font-archivo {
+  font-family: "Archivo", sans-serif;
+}
+
+.font-mono {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+/* Custom Scrollbar for Cosmic aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0E1E3C;
+}
+::-webkit-scrollbar-thumb {
+  background: #16336E;
+  border: 1px solid #7FD8E8;
+}
