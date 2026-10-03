@@ -1,0 +1,130 @@
+{
+  "questions": [
+    {
+      "id": "q-3356",
+      "text": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "language": "English",
+      "category": "Civic",
+      "author": "Live survey reading",
+      "activeStart": "2026-10-03",
+      "activeEnd": "",
+      "createdAt": "2026-10-03T08:37:43.356Z"
+    },
+    {
+      "id": "q-01",
+      "text": "क्या कोटा में रात 10 बजे के बाद लाइब्रेरी खुलनी चाहिए? / Should student libraries stay open past 10 PM in Kota?",
+      "optionA": "हाँ / YES",
+      "optionB": "नहीं / NO",
+      "language": "Hindi",
+      "category": "Education",
+      "author": "Admin Team (Mukesh)",
+      "activeStart": "2026-09-20",
+      "activeEnd": "2026-10-10",
+      "createdAt": "2026-09-19T10:00:00Z"
+    },
+    {
+      "id": "q-02",
+      "text": "सार्वजनिक स्थान पर कचरा फेंकने पर ₹500 का तत्काल जुर्माना होना चाहिए? / Should there be a ₹500 spot fine for littering in public?",
+      "optionA": "सहमत / AGREE",
+      "optionB": "असहमत / DISAGREE",
+      "language": "Hindi",
+      "category": "Civic",
+      "author": "Admin Team (Mukesh)",
+      "activeStart": "2026-09-21",
+      "activeEnd": "2026-10-15",
+      "createdAt": "2026-09-20T14:30:00Z"
+    },
+    {
+      "id": "q-03",
+      "text": "JEE / NEET तैयारी में ऑनलाइन vs ऑफलाइन टेस्ट सीरीज: कौन अधिक मददगार है? / JEE prep: Online or Offline Mock Tests?",
+      "optionA": "ऑनलाइन / ONLINE",
+      "optionB": "ऑफलाइन / OFFLINE",
+      "language": "Hindi",
+      "category": "Youth",
+      "author": "Research Team",
+      "activeStart": "2026-09-25",
+      "activeEnd": "2026-10-25",
+      "createdAt": "2026-09-24T09:15:00Z"
+    }
+  ],
+  "snapshots": [
+    {
+      "sequence": 5,
+      "id": "archive-1791050128000",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "SmartBin CC-BIN-01 (Archived on Reset)",
+      "questionId": "q-3356",
+      "questionText": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "countA": 412,
+      "countB": 288,
+      "connectionMethod": "Admin Reset Auto-Archive",
+      "capturedAt": "2026-10-03T17:55:14.191Z",
+      "savedAt": "2026-10-03T17:55:28.000Z"
+    },
+    {
+      "sequence": 4,
+      "id": "7c7f9d26-91a3-410c-92d1-6dfc12620521",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "ESP32 SmartBin (BLUETOOTH)",
+      "questionId": "q-3356",
+      "questionText": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "countA": 5,
+      "countB": 4,
+      "connectionMethod": "bluetooth",
+      "capturedAt": "2026-10-03T08:38:57.670Z",
+      "savedAt": "2026-10-03T08:39:12.401Z"
+    },
+    {
+      "sequence": 3,
+      "id": "45eb40dd-51f7-43dd-9228-b4f51507e954",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "ESP32 SmartBin (BLUETOOTH)",
+      "questionId": "q-3356",
+      "questionText": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "countA": 5,
+      "countB": 3,
+      "connectionMethod": "bluetooth",
+      "capturedAt": "2026-10-03T08:38:47.948Z",
+      "savedAt": "2026-10-03T08:38:47.936Z"
+    },
+    {
+      "sequence": 2,
+      "id": "73f5d644-dad0-451e-a510-d2cb1e709206",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "ESP32 SmartBin (BLUETOOTH)",
+      "questionId": "q-3356",
+      "questionText": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "countA": 5,
+      "countB": 2,
+      "connectionMethod": "bluetooth",
+      "capturedAt": "2026-10-03T08:38:35.645Z",
+      "savedAt": "2026-10-03T08:38:45.669Z"
+    },
+    {
+      "sequence": 1,
+      "id": "68a53899-a8fc-4b1f-882a-2b0325e21361",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "ESP32 SmartBin (BLUETOOTH)",
+      "questionId": "q-3356",
+      "questionText": "kota 1 question test",
+      "optionA": "हाँ / Yes",
+      "optionB": "नहीं / No",
+      "countA": 0,
+      "countB": 0,
+      "connectionMethod": "bluetooth",
+      "capturedAt": "2026-10-03T08:36:58.554Z",
+      "savedAt": "2026-10-03T08:37:43.356Z"
+    }
+  ],
+  "latestSequence": 5
+}
