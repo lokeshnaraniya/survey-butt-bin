@@ -45,13 +45,55 @@ interface StoredSnapshot {
   savedAt: string;
 }
 
+interface StoredMerchant {
+  id: string;
+  name: string;
+  shopName: string;
+  phone: string;
+  password?: string;
+  locality: string;
+  assignedBinSerial: string;
+  autoSyncEnabled?: boolean;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface StorageDb {
   questions: StoredQuestion[];
   snapshots: StoredSnapshot[];
   latestSequence: number;
+  merchants?: StoredMerchant[];
+  currentCounts?: {
+    serial: string;
+    countA: number;
+    countB: number;
+    total: number;
+    updatedAt: string;
+  };
+  binCounts?: Record<string, {
+    serial: string;
+    locationName?: string;
+    countA: number;
+    countB: number;
+    total: number;
+    updatedAt: string;
+  }>;
 }
 
 const DEFAULT_QUESTIONS: StoredQuestion[] = [
+  {
+    id: 'q-kota-airport',
+    text: 'KOTA AIRPORT WILL BE COMPLETED ON TIME? / क्या कोटा एयरपोर्ट समय पर पूरा होगा?',
+    optionA: 'YES / हाँ',
+    optionB: 'NO / नहीं',
+    language: 'Hindi',
+    category: 'Civic',
+    author: 'Code & Circuit SmartBin',
+    activeStart: '2026-10-01',
+    activeEnd: '2026-12-31',
+    createdAt: '2026-10-01T00:00:00Z',
+  },
   {
     id: 'q-01',
     text: 'क्या कोटा में रात 10 बजे के बाद लाइब्रेरी खुलनी चाहिए? / Should student libraries stay open past 10 PM in Kota?',
@@ -116,12 +158,37 @@ function saveDb() {
   }
 }
 
-// In-memory latest bin telemetry store
-let latestBinData = {
+const KOTA_BIN_LOCATIONS: Record<string, string> = {
+  'CC-BIN-01': 'Gumanpura - Tea Corner',
+  'CC-BIN-02': 'Talwandi Circle - Student Chai',
+  'CC-BIN-03': 'Vigyan Nagar - Coaching Point',
+  'CC-BIN-04': 'Indra Vihar - Hostel Gate',
+  'CC-BIN-05': 'Nayapura - Bus Stand Tea',
+};
+
+// Ensure all 5 Kota bins exist in db.binCounts
+if (!db.binCounts) {
+  db.binCounts = {};
+}
+Object.entries(KOTA_BIN_LOCATIONS).forEach(([serial, loc]) => {
+  if (!db.binCounts[serial]) {
+    db.binCounts[serial] = {
+      serial,
+      locationName: loc,
+      countA: 0,
+      countB: 0,
+      total: 0,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+});
+
+// Persistent latest bin telemetry store from DB or clean zero
+let latestBinData = db.currentCounts || {
   serial: 'CC-BIN-01',
-  countA: 412,
-  countB: 288,
-  total: 700,
+  countA: 0,
+  countB: 0,
+  total: 0,
   updatedAt: new Date().toISOString(),
 };
 
@@ -153,28 +220,97 @@ app.all('/api/bin/sync', (req, res) => {
       ? parseInt(String(bodyB), 10)
       : null;
 
+  const targetSerial = String(req.query.serial || req.body?.serial || req.query.binId || req.body?.binId || 'CC-BIN-01').trim();
+  if (!db.binCounts) db.binCounts = {};
+
+  const currentForBin = db.binCounts[targetSerial] || {
+    serial: targetSerial,
+    locationName: KOTA_BIN_LOCATIONS[targetSerial] || targetSerial,
+    countA: 0,
+    countB: 0,
+    total: 0,
+    updatedAt: new Date().toISOString(),
+  };
+
   if (a !== null || b !== null) {
-    latestBinData = {
-      serial: String(req.query.serial || req.body?.serial || 'CC-BIN-01'),
-      countA: a !== null && !isNaN(a) ? a : latestBinData.countA,
-      countB: b !== null && !isNaN(b) ? b : latestBinData.countB,
-      total:
-        (a !== null && !isNaN(a) ? a : latestBinData.countA) +
-        (b !== null && !isNaN(b) ? b : latestBinData.countB),
+    const nextA = a !== null && !isNaN(a) ? Math.max(0, a) : currentForBin.countA;
+    const nextB = b !== null && !isNaN(b) ? Math.max(0, b) : currentForBin.countB;
+    const updatedBin = {
+      serial: targetSerial,
+      locationName: KOTA_BIN_LOCATIONS[targetSerial] || targetSerial,
+      countA: nextA,
+      countB: nextB,
+      total: nextA + nextB,
       updatedAt: new Date().toISOString(),
     };
+    db.binCounts[targetSerial] = updatedBin;
+
+    // Calculate network-wide cumulative totals across all bins
+    const allBins = Object.values(db.binCounts);
+    const networkA = allBins.reduce((sum, item: any) => sum + (item.countA || 0), 0);
+    const networkB = allBins.reduce((sum, item: any) => sum + (item.countB || 0), 0);
+
+    latestBinData = {
+      serial: targetSerial,
+      countA: networkA,
+      countB: networkB,
+      total: networkA + networkB,
+      updatedAt: new Date().toISOString(),
+    };
+    db.currentCounts = latestBinData;
+    saveDb();
   }
 
   res.json({
     success: true,
-    data: latestBinData,
-    message: 'Telemetry synchronized successfully',
+    data: db.binCounts[targetSerial] || latestBinData,
+    networkTotals: latestBinData,
+    message: `Telemetry saved for bin ${targetSerial} (${KOTA_BIN_LOCATIONS[targetSerial] || targetSerial})`,
   });
 });
 
 app.get('/api/bin/counts', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.json(latestBinData);
+  const targetSerial = typeof req.query.serial === 'string' ? req.query.serial.trim() : null;
+  if (!db.binCounts) db.binCounts = {};
+
+  if (targetSerial) {
+    const binData = db.binCounts[targetSerial] || {
+      serial: targetSerial,
+      locationName: KOTA_BIN_LOCATIONS[targetSerial] || targetSerial,
+      countA: 0,
+      countB: 0,
+      total: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    return res.json(binData);
+  }
+
+  const allBins = Object.values(db.binCounts);
+  const networkA = allBins.reduce((sum, item: any) => sum + (item.countA || 0), 0);
+  const networkB = allBins.reduce((sum, item: any) => sum + (item.countB || 0), 0);
+
+  res.json({
+    latest: latestBinData,
+    bins: db.binCounts,
+    countA: networkA,
+    countB: networkB,
+    total: networkA + networkB,
+    serial: latestBinData.serial,
+  });
+});
+
+// Reject arbitrary manual count overrides - Only real ESP32 / sensor / ballot inputs allowed
+app.all('/api/bin/set-counts', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+
+  res.status(403).json({
+    success: false,
+    error: 'Manual count setting is disabled. All vote counts must come directly from real ESP32 sensors or authentic ballots.',
+  });
 });
 
 // Admin Authentication Endpoint
@@ -202,7 +338,7 @@ app.post('/api/admin/login', (req, res) => {
   return res.status(401).json({ success: false, error: 'Invalid admin email or password.' });
 });
 
-// Reset Bin Counts - Strictly Restricted to Admin
+// Reset Bin Counts - Strictly Restricted to Admin - Auto-Archives All Bin Data with Question Info
 app.all('/api/bin/reset', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -226,27 +362,70 @@ app.all('/api/bin/reset', (req, res) => {
     });
   }
 
-  // Auto-archive previous survey counts into db.snapshots before zeroing so old data is permanently preserved
-  if (latestBinData.total > 0) {
-    const activeQ = db.questions[0] || DEFAULT_QUESTIONS[0];
+  const targetSerial = req.query.serial || req.body?.serial;
+  const activeQ = db.questions[0] || DEFAULT_QUESTIONS[0];
+  const questionId = req.body?.questionId || req.query.questionId || activeQ.id;
+  const questionText = req.body?.questionText || req.query.questionText || activeQ.text;
+  const optionA = req.body?.optionA || req.query.optionA || activeQ.optionA;
+  const optionB = req.body?.optionB || req.query.optionB || activeQ.optionB;
+
+  const archivedSnapshots: StoredSnapshot[] = [];
+
+  // Archive data for bins that had votes recorded
+  if (db.binCounts && Object.keys(db.binCounts).length > 0) {
+    for (const [serial, bin] of Object.entries(db.binCounts)) {
+      if (targetSerial && targetSerial !== 'ALL' && serial !== targetSerial) {
+        continue;
+      }
+      const b = bin as any;
+      if ((b.countA || 0) + (b.countB || 0) > 0) {
+        db.latestSequence += 1;
+        const snapshot: StoredSnapshot = {
+          sequence: db.latestSequence,
+          id: `archive-${serial}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          unitSerial: serial,
+          deviceName: `SmartBin ${serial} (${KOTA_BIN_LOCATIONS[serial] || b.locationName || 'Kota Location'})`,
+          questionId,
+          questionText,
+          optionA,
+          optionB,
+          countA: b.countA || 0,
+          countB: b.countB || 0,
+          connectionMethod: 'Admin Reset Auto-Archive (Pre-Reset)',
+          capturedAt: b.updatedAt || new Date().toISOString(),
+          savedAt: new Date().toISOString(),
+        };
+        db.snapshots.unshift(snapshot);
+        archivedSnapshots.push(snapshot);
+      }
+      // Zero out the bin count after saving
+      b.countA = 0;
+      b.countB = 0;
+      b.total = 0;
+      b.updatedAt = new Date().toISOString();
+    }
+  }
+
+  // Also if latestBinData had votes that were not captured above
+  if (latestBinData.total > 0 && !archivedSnapshots.some((s) => s.unitSerial === latestBinData.serial)) {
     db.latestSequence += 1;
-    const archivedSnapshot: StoredSnapshot = {
+    const snapshot: StoredSnapshot = {
       sequence: db.latestSequence,
-      id: `archive-${Date.now()}`,
+      id: `archive-${latestBinData.serial}-${Date.now()}`,
       unitSerial: latestBinData.serial,
-      deviceName: 'SmartBin CC-BIN-01 (Archived on Reset)',
-      questionId: activeQ.id,
-      questionText: activeQ.text,
-      optionA: activeQ.optionA,
-      optionB: activeQ.optionB,
+      deviceName: `SmartBin ${latestBinData.serial} (${KOTA_BIN_LOCATIONS[latestBinData.serial] || 'Kota Network'})`,
+      questionId,
+      questionText,
+      optionA,
+      optionB,
       countA: latestBinData.countA,
       countB: latestBinData.countB,
-      connectionMethod: 'Admin Reset Auto-Archive',
-      capturedAt: latestBinData.updatedAt,
+      connectionMethod: 'Admin Reset Auto-Archive (Network)',
+      capturedAt: latestBinData.updatedAt || new Date().toISOString(),
       savedAt: new Date().toISOString(),
     };
-    db.snapshots.unshift(archivedSnapshot);
-    saveDb();
+    db.snapshots.unshift(snapshot);
+    archivedSnapshots.push(snapshot);
   }
 
   latestBinData = {
@@ -256,10 +435,14 @@ app.all('/api/bin/reset', (req, res) => {
     total: 0,
     updatedAt: new Date().toISOString(),
   };
+  db.currentCounts = latestBinData;
+  saveDb();
 
   res.json({
     success: true,
-    message: 'Bin counts reset to 0 by Admin. Historical data archived successfully.',
+    message: 'Bin counts reset to 0. Historical data and question safely preserved in database.',
+    archivedCount: archivedSnapshots.length,
+    archivedSnapshots,
     data: latestBinData,
   });
 });
@@ -300,6 +483,38 @@ app.post('/api/survey/questions', (req, res) => {
   saveDb();
 
   res.json({ success: true, question: newQuestion });
+});
+
+// Activate existing question
+app.post('/api/survey/questions/activate/:id', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { id } = req.params;
+  const idx = db.questions.findIndex((q) => q.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Question not found' });
+  }
+  const [selected] = db.questions.splice(idx, 1);
+  db.questions.unshift(selected);
+  saveDb();
+  res.json({ success: true, activeQuestion: selected });
+});
+
+// Delete question
+app.delete('/api/survey/questions/:id', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { id } = req.params;
+  db.questions = db.questions.filter((q) => q.id !== id);
+  saveDb();
+  res.json({ success: true, message: 'Question deleted' });
+});
+
+// Delete snapshot / history record
+app.delete('/api/survey/history/:id', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { id } = req.params;
+  db.snapshots = db.snapshots.filter((s) => s.id !== id);
+  saveDb();
+  res.json({ success: true, message: 'History record deleted' });
 });
 
 // POST /api/survey/save
@@ -418,6 +633,142 @@ app.get('/api/survey/history', (req, res) => {
     records: pageRecords,
     nextCursor,
   });
+});
+
+// ==========================================
+// SHOPKEEPER & BIN ASSIGNMENT API ROUTES
+// ==========================================
+
+const DEFAULT_STORED_MERCHANTS: StoredMerchant[] = [
+  {
+    id: 'merch-01',
+    name: 'Ramesh Tiwari',
+    phone: '9829011420',
+    password: '1234',
+    shopName: 'Sharma Tea Point & Cafe',
+    locality: 'Gumanpura / Kunhari, Kota',
+    assignedBinSerial: 'CC-BIN-01',
+    autoSyncEnabled: true,
+  },
+  {
+    id: 'merch-02',
+    name: 'Gopal Soni',
+    phone: '9414233100',
+    password: '1234',
+    shopName: 'Jai Hind Refreshment Stall',
+    locality: 'Talwandi Commerce Circle, Kota',
+    assignedBinSerial: 'CC-BIN-02',
+    autoSyncEnabled: true,
+  },
+  {
+    id: 'merch-03',
+    name: 'Mohan Lal',
+    phone: '9785123980',
+    password: '1234',
+    shopName: 'Kota Chai Point',
+    locality: 'Vigyan Nagar Coaching Strip, Kota',
+    assignedBinSerial: 'CC-BIN-03',
+    autoSyncEnabled: true,
+  },
+  {
+    id: 'merch-04',
+    name: 'Shankar Lal',
+    phone: '9828456123',
+    password: '1234',
+    shopName: 'Royal Paan Palace',
+    locality: 'Rangbari / Indra Vihar, Kota',
+    assignedBinSerial: 'CC-BIN-04',
+    autoSyncEnabled: true,
+  },
+  {
+    id: 'merch-05',
+    name: 'Dinesh Rathore',
+    phone: '9413789012',
+    password: '1234',
+    shopName: 'Central City Tobacco Kiosk',
+    locality: 'Nayapura Bus Stand, Kota',
+    assignedBinSerial: 'CC-BIN-05',
+    autoSyncEnabled: true,
+  },
+];
+
+// GET /api/merchants - List all registered shopkeepers & assigned bins
+app.get('/api/merchants', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!db.merchants || db.merchants.length === 0) {
+    db.merchants = [...DEFAULT_STORED_MERCHANTS];
+    saveDb();
+  }
+  res.json({ merchants: db.merchants });
+});
+
+// POST /api/merchants - Add new shopkeeper with assigned bin & password
+app.post('/api/merchants', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { name, shopName, phone, password, locality, assignedBinSerial, notes } = req.body || {};
+  if (!name || !shopName || !phone) {
+    return res.status(400).json({ error: 'Shopkeeper Name, Shop Name, and Mobile Number are required.' });
+  }
+
+  if (!db.merchants) db.merchants = [...DEFAULT_STORED_MERCHANTS];
+
+  const newMerch: StoredMerchant = {
+    id: `merch-${Date.now().toString().slice(-5)}`,
+    name: String(name).trim(),
+    shopName: String(shopName).trim(),
+    phone: String(phone).replace(/\D/g, '').slice(-10),
+    password: password ? String(password).trim() : '1234',
+    locality: locality ? String(locality).trim() : 'Kota, Rajasthan',
+    assignedBinSerial: assignedBinSerial ? String(assignedBinSerial).trim() : 'CC-BIN-01',
+    autoSyncEnabled: true,
+    notes: notes ? String(notes).trim() : '',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.merchants.push(newMerch);
+  saveDb();
+  res.json({ success: true, merchant: newMerch });
+});
+
+// PUT /api/merchants/:id - Update shopkeeper details, password, or reassign bin
+app.put('/api/merchants/:id', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { id } = req.params;
+  if (!db.merchants) db.merchants = [...DEFAULT_STORED_MERCHANTS];
+
+  const idx = db.merchants.findIndex((m) => m.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Shopkeeper not found' });
+  }
+
+  const existing = db.merchants[idx];
+  const updated: StoredMerchant = {
+    ...existing,
+    name: req.body?.name !== undefined ? String(req.body.name).trim() : existing.name,
+    shopName: req.body?.shopName !== undefined ? String(req.body.shopName).trim() : existing.shopName,
+    phone: req.body?.phone !== undefined ? String(req.body.phone).replace(/\D/g, '').slice(-10) : existing.phone,
+    password: req.body?.password !== undefined ? String(req.body.password).trim() : (existing.password || '1234'),
+    locality: req.body?.locality !== undefined ? String(req.body.locality).trim() : existing.locality,
+    assignedBinSerial: req.body?.assignedBinSerial !== undefined ? String(req.body.assignedBinSerial).trim() : existing.assignedBinSerial,
+    notes: req.body?.notes !== undefined ? String(req.body.notes).trim() : existing.notes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.merchants[idx] = updated;
+  saveDb();
+  res.json({ success: true, merchant: updated });
+});
+
+// DELETE /api/merchants/:id - Remove shopkeeper
+app.delete('/api/merchants/:id', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const { id } = req.params;
+  if (!db.merchants) db.merchants = [...DEFAULT_STORED_MERCHANTS];
+
+  db.merchants = db.merchants.filter((m) => m.id !== id);
+  saveDb();
+  res.json({ success: true, message: 'Shopkeeper removed successfully' });
 });
 
 // Vite Middleware mounting

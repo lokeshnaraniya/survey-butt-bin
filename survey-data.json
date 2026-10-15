@@ -51,6 +51,36 @@
   ],
   "snapshots": [
     {
+      "sequence": 7,
+      "id": "archive-CC-BIN-02-1791749310082-uzh",
+      "unitSerial": "CC-BIN-02",
+      "deviceName": "SmartBin CC-BIN-02 (Talwandi Circle - Student Chai)",
+      "questionId": "q-kota-airport",
+      "questionText": "KOTA AIRPORT WILL BE COMPLETED ON TIME?",
+      "optionA": "YES / हाँ",
+      "optionB": "NO / नहीं",
+      "countA": 15,
+      "countB": 9,
+      "connectionMethod": "Admin Reset Auto-Archive (Pre-Reset)",
+      "capturedAt": "2026-10-11T20:08:19.388Z",
+      "savedAt": "2026-10-11T20:08:30.082Z"
+    },
+    {
+      "sequence": 6,
+      "id": "archive-CC-BIN-01-1791749310082-bhg",
+      "unitSerial": "CC-BIN-01",
+      "deviceName": "SmartBin CC-BIN-01 (Gumanpura - Tea Corner)",
+      "questionId": "q-kota-airport",
+      "questionText": "KOTA AIRPORT WILL BE COMPLETED ON TIME?",
+      "optionA": "YES / हाँ",
+      "optionB": "NO / नहीं",
+      "countA": 30,
+      "countB": 12,
+      "connectionMethod": "Admin Reset Auto-Archive (Pre-Reset)",
+      "capturedAt": "2026-10-11T20:08:23.490Z",
+      "savedAt": "2026-10-11T20:08:30.082Z"
+    },
+    {
       "sequence": 5,
       "id": "archive-1791050128000",
       "unitSerial": "CC-BIN-01",
@@ -126,5 +156,54 @@
       "savedAt": "2026-10-03T08:37:43.356Z"
     }
   ],
-  "latestSequence": 5
+  "latestSequence": 7,
+  "binCounts": {
+    "CC-BIN-01": {
+      "serial": "CC-BIN-01",
+      "locationName": "Gumanpura - Tea Corner",
+      "countA": 0,
+      "countB": 0,
+      "total": 0,
+      "updatedAt": "2026-10-11T20:08:30.082Z"
+    },
+    "CC-BIN-02": {
+      "serial": "CC-BIN-02",
+      "locationName": "Talwandi Circle - Student Chai",
+      "countA": 0,
+      "countB": 0,
+      "total": 0,
+      "updatedAt": "2026-10-11T20:08:30.082Z"
+    },
+    "CC-BIN-03": {
+      "serial": "CC-BIN-03",
+      "locationName": "Vigyan Nagar - Coaching Point",
+      "countA": 0,
+      "countB": 0,
+      "total": 0,
+      "updatedAt": "2026-10-11T20:08:30.082Z"
+    },
+    "CC-BIN-04": {
+      "serial": "CC-BIN-04",
+      "locationName": "Indra Vihar - Hostel Gate",
+      "countA": 0,
+      "countB": 0,
+      "total": 0,
+      "updatedAt": "2026-10-11T20:08:30.082Z"
+    },
+    "CC-BIN-05": {
+      "serial": "CC-BIN-05",
+      "locationName": "Nayapura - Bus Stand Tea",
+      "countA": 0,
+      "countB": 0,
+      "total": 0,
+      "updatedAt": "2026-10-11T20:08:30.082Z"
+    }
+  },
+  "currentCounts": {
+    "serial": "CC-BIN-01",
+    "countA": 0,
+    "countB": 0,
+    "total": 0,
+    "updatedAt": "2026-10-11T20:08:30.082Z"
+  }
 }
