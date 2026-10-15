@@ -8,47 +8,111 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { PublicWebsite } from './components/website/PublicWebsite';
 import { MobileShell } from './components/layout/MobileShell';
-import { ArrowLeft, Smartphone } from 'lucide-react';
+import { StaffLoginView } from './components/auth/StaffLoginView';
+import { StaffManagementModal } from './components/admin/StaffManagementModal';
+import { ShopkeeperManagementModal } from './components/admin/ShopkeeperManagementModal';
+import { BluetoothConnectModal } from './components/device/BluetoothConnectModal';
+import { getActiveStaffSession, clearActiveStaffSession } from './services/staffService';
+import { StaffUser } from './types';
+import {
+  ArrowLeft,
+  Smartphone,
+  LogOut,
+  ShieldCheck,
+  Users,
+  Store,
+  Sun,
+  Moon,
+} from 'lucide-react';
 
 function MainRouter() {
-  const { role, setRole, isAdminAuthenticated } = useApp();
+  const {
+    isAdminAuthenticated,
+    theme,
+    toggleTheme,
+    isBluetoothModalOpen,
+    setIsBluetoothModalOpen,
+    bluetoothTargetSerial,
+  } = useApp();
   const [viewMode, setViewMode] = useState<'website' | 'app'>('website');
+  const [activeStaff, setActiveStaff] = useState<StaffUser | null>(() => getActiveStaffSession());
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [shopkeeperModalOpen, setShopkeeperModalOpen] = useState(false);
+
+  const handleStaffLogout = () => {
+    clearActiveStaffSession();
+    setActiveStaff(null);
+    setViewMode('website');
+  };
 
   if (viewMode === 'app') {
+    // If not authenticated as staff (and not logged in as admin), require Staff Login
+    if (!activeStaff && !isAdminAuthenticated) {
+      return (
+        <StaffLoginView
+          onSuccess={(staff) => setActiveStaff(staff)}
+          onBackToWebsite={() => setViewMode('website')}
+        />
+      );
+    }
+
     return (
       <div className="relative">
-        <div className="bg-[#050B14] border-b border-[#7FD8E8]/30 px-4 py-2 flex items-center justify-between text-xs font-mono text-[#F2EAD6]">
-          <button
-            type="button"
-            onClick={() => setViewMode('website')}
-            className="flex items-center gap-1.5 px-3 py-1 bg-[#1F8F82] hover:bg-[#18756a] text-white font-bold cursor-pointer transition-colors shadow"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>← Back to Public Website</span>
-          </button>
-          <span className="text-[#7FD8E8]">Staff Mobile Operational Terminal (CW-01)</span>
-        </div>
-        <MobileShell />
+        <MobileShell
+          onBackToWebsite={() => setViewMode('website')}
+          onStaffLogout={handleStaffLogout}
+          activeStaff={activeStaff}
+        />
+
+        {/* Shopkeeper & Bin Allocation Modal Accessible in Staff & Admin View */}
+        <ShopkeeperManagementModal
+          isOpen={shopkeeperModalOpen}
+          onClose={() => setShopkeeperModalOpen(false)}
+          currentRole={activeStaff ? 'staff' : 'admin'}
+        />
+
+        {/* Staff Management Modal Accessible Anywhere */}
+        <StaffManagementModal
+          isOpen={staffModalOpen}
+          onClose={() => setStaffModalOpen(false)}
+        />
+
+        {/* Global Bluetooth Connection & Troubleshooting Hub */}
+        <BluetoothConnectModal
+          isOpen={isBluetoothModalOpen}
+          onClose={() => setIsBluetoothModalOpen(false)}
+          targetSerial={bluetoothTargetSerial}
+        />
       </div>
     );
   }
 
   return (
     <div className="relative">
-      <PublicWebsite />
+      <PublicWebsite
+        onOpenStaffApp={() => setViewMode('app')}
+        onOpenShopkeepers={() => setShopkeeperModalOpen(true)}
+      />
 
-      {/* Floating shortcut to switch to Staff Hardware App if needed */}
-      <div className="fixed bottom-4 right-4 z-30">
-        <button
-          type="button"
-          onClick={() => setViewMode('app')}
-          className="flex items-center gap-2 bg-[#0E1E3C]/95 hover:bg-[#16336E] border border-[#7FD8E8]/50 px-3.5 py-2 text-[#7FD8E8] hover:text-white font-mono text-xs font-bold shadow-2xl backdrop-blur-md cursor-pointer transition-all active:scale-95"
-          title="Switch to Staff Hardware App"
-        >
-          <Smartphone className="w-4 h-4 text-[#F2B33D]" />
-          <span>Staff App View</span>
-        </button>
-      </div>
+      {/* Shopkeeper & Bin Allocation Modal Accessible in Website View */}
+      <ShopkeeperManagementModal
+        isOpen={shopkeeperModalOpen}
+        onClose={() => setShopkeeperModalOpen(false)}
+        currentRole={isAdminAuthenticated ? 'admin' : 'staff'}
+      />
+
+      {/* Staff Management Modal Accessible Anywhere */}
+      <StaffManagementModal
+        isOpen={staffModalOpen}
+        onClose={() => setStaffModalOpen(false)}
+      />
+
+      {/* Global Bluetooth Connection & Troubleshooting Hub */}
+      <BluetoothConnectModal
+        isOpen={isBluetoothModalOpen}
+        onClose={() => setIsBluetoothModalOpen(false)}
+        targetSerial={bluetoothTargetSerial}
+      />
     </div>
   );
 }
@@ -60,4 +124,3 @@ export default function App() {
     </AppProvider>
   );
 }
-

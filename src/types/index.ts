@@ -209,3 +209,13 @@ export interface AdminConfig {
   merchants_see_leaderboard: boolean;
   vote_rate_drop_alert_pct: number;
 }
+
+export interface StaffUser {
+  id: string;
+  name: string;
+  mobile: string; // Used as User ID
+  password: string;
+  role: 'Field Agent' | 'Technician' | 'Supervisor';
+  addedAt: string;
+  active: boolean;
+}

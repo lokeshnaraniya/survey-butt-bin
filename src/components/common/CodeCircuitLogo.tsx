@@ -1,12 +1,22 @@
 import React from 'react';
 
+export type LogoSize = number | 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
 interface CodeCircuitLogoProps {
-  size?: number;
+  size?: LogoSize;
   className?: string;
   sparkColor?: string;
   strokeColor?: string;
   interactive?: boolean;
 }
+
+const SIZE_MAP: Record<string, number> = {
+  xs: 20,
+  sm: 24,
+  md: 28,
+  lg: 36,
+  xl: 44,
+};
 
 /**
  * Code & Circuit (C&C) Official Brand Mark
@@ -14,25 +24,30 @@ interface CodeCircuitLogoProps {
  * Outer circuit "C" ring + Terminal console window `>_` + Radiating laser spark
  */
 export const CodeCircuitLogo: React.FC<CodeCircuitLogoProps> = ({
-  size = 48,
+  size = 28,
   className = '',
   sparkColor = '#7FD8E8',
   strokeColor = '#F2EAD6',
   interactive = false,
 }) => {
+  const pixelSize = typeof size === 'number' ? size : SIZE_MAP[size] || 28;
+
   return (
     <div
-      className={`relative inline-flex items-center justify-center select-none ${interactive ? 'hover:scale-105 transition-transform duration-300' : ''} ${className}`}
-      style={{ width: size, height: size }}
+      className={`relative inline-flex items-center justify-center select-none flex-shrink-0 ${
+        interactive ? 'hover:scale-105 transition-transform duration-300' : ''
+      } ${className}`}
+      style={{ width: pixelSize, height: pixelSize }}
       title="Code & Circuit — Cosmic Workshop"
     >
       <svg
         viewBox="0 0 200 200"
-        width={size}
-        height={size}
+        width={pixelSize}
+        height={pixelSize}
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="w-full h-full drop-shadow-[0_0_12px_rgba(127,216,232,0.25)]"
+        preserveAspectRatio="xMidYMid meet"
+        className="w-full h-full drop-shadow-[0_0_8px_rgba(127,216,232,0.25)]"
       >
         {/* Outer Circular Circuit 'C' Track */}
         {/* Outer perimeter arc */}

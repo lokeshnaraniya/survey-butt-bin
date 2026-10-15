@@ -81,3 +81,56 @@
   background: #16336E;
   border: 1px solid #7FD8E8;
 }
+
+/* ------------------------------------------------------------- */
+/* LIGHT MODE STYLES & OVERRIDES */
+/* ------------------------------------------------------------- */
+html.light-mode,
+body.light-mode,
+.light-mode {
+  color-scheme: light;
+  background-color: #F1F5F9 !important;
+  color: #0F172A !important;
+}
+
+.light-mode .bg-\[\#070D18\],
+.light-mode .bg-\[\#050B14\],
+.light-mode .bg-\[\#081226\],
+.light-mode .bg-\[\#0A1424\],
+.light-mode .bg-\[\#0C1628\],
+.light-mode .bg-\[\#0E1E3C\] {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+.light-mode .bg-\[\#102647\],
+.light-mode .bg-\[\#16336E\],
+.light-mode .bg-\[\#1E293B\],
+.light-mode .bg-gradient-to-br {
+  background-color: #F8FAFC !important;
+  background-image: none !important;
+  color: #0F172A !important;
+}
+
+.light-mode .text-white,
+.light-mode .text-\[\#F2EAD6\] {
+  color: #0F172A !important;
+}
+
+.light-mode .text-\[\#94A3B8\],
+.light-mode .text-\[\#64748B\],
+.light-mode .text-\[\#F2EAD6\]\/70,
+.light-mode .text-\[\#F2EAD6\]\/80 {
+  color: #475569 !important;
+}
+
+.light-mode .border-\[\#1E293B\],
+.light-mode .border-\[\#334155\],
+.light-mode .border-\[\#475569\],
+.light-mode .border-\[\#7FD8E8\]\/20,
+.light-mode .border-\[\#7FD8E8\]\/25,
+.light-mode .border-\[\#7FD8E8\]\/30,
+.light-mode .border-\[\#7FD8E8\]\/40 {
+  border-color: #CBD5E1 !important;
+}
+

@@ -48,16 +48,17 @@ export const DeviceWifiSyncModal: React.FC<{ isOpen: boolean; onClose: () => voi
     sendHardwareReset,
     selectedUnit,
     triggerHardwareVote,
+    liveReading,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'cloud' | 'bluetooth' | 'serial' | 'manual' | 'code'>('cloud');
+  const liveA = liveReading ? liveReading.countA : selectedUnit.counts.A;
+  const liveB = liveReading ? liveReading.countB : selectedUnit.counts.B;
+  const liveTotal = liveReading ? liveReading.total : liveA + liveB;
+
+  const [activeTab, setActiveTab] = useState<'cloud' | 'bluetooth' | 'serial' | 'code'>('cloud');
   const [copiedCode, setCopiedCode] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
-
-  // Manual fast input
-  const [manualA, setManualA] = useState(selectedUnit.counts.A);
-  const [manualB, setManualB] = useState(selectedUnit.counts.B);
 
   // Detect if running inside iframe (which triggers the browser Permissions Policy restriction)
   const [isInIframe, setIsInIframe] = useState(false);
@@ -90,16 +91,6 @@ export const DeviceWifiSyncModal: React.FC<{ isOpen: boolean; onClose: () => voi
     } finally {
       setCloudSyncing(false);
     }
-  };
-
-  const handleManualSync = async () => {
-    const payload = JSON.stringify({ countA: Number(manualA), countB: Number(manualB) });
-    await syncWithESP32Device(payload);
-    // Also update server endpoint
-    try {
-      await fetch(`/api/bin/sync?a=${manualA}&b=${manualB}`);
-    } catch {}
-    setCloudMsg(`Manually synchronized: A=${manualA}, B=${manualB}`);
   };
 
   const openInFullTab = () => {
@@ -230,7 +221,12 @@ class ServerCallbacks: public BLEServerCallbacks {
   void onConnect(BLEServer* pServer) {
     bleConnected = true;
     Serial.println("App Connected via Bluetooth!");
-    syncTelemetry();
+    showLCD();
+    // Pre-populate characteristic value so immediate readValue() gets current counts
+    String payload = "{\"countA\":" + String(countA) + ",\"countB\":" + String(countB) + ",\"total\":" + String(countA + countB) + "}";
+    if (pCharacteristic != NULL) {
+      pCharacteristic->setValue(payload.c_str());
+    }
   }
   void onDisconnect(BLEServer* pServer) {
     bleConnected = false;
@@ -242,9 +238,12 @@ class ServerCallbacks: public BLEServerCallbacks {
 class CharacteristicCallbacks: public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pChar) {
     String rxValue = pChar->getValue();
+    rxValue.trim();
     if (rxValue.indexOf("RESET") >= 0) {
       resetCounts();
-    } else if (rxValue.indexOf("READ") >= 0) {
+    } else {
+      // Whenever app connects and sends READ or queries status, respond immediately!
+      showLCD();
       syncTelemetry();
     }
   }
@@ -260,13 +259,13 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0); lcd.print("Code & Circuit");
-  lcd.setCursor(0, 1); lcd.print("Starting...");
+  lcd.setCursor(0, 1); lcd.print("SmartBin Ready");
 
   prefs.begin("smartbin", false);
   countA = prefs.getULong("A", 0);
   countB = prefs.getULong("B", 0);
-  delay(1000);
-  showLCD();
+  delay(500);
+  showLCD(); // Immediately show real counts on LCD right on power on!
 
   // Dual Wi-Fi Mode: SoftAP (192.168.4.1) + Station (Hotspot Cloud Sync)
   WiFi.mode(WIFI_AP_STA);
@@ -293,6 +292,11 @@ void setup() {
                     );
   pCharacteristic->addDescriptor(new BLE2902());
   pCharacteristic->setCallbacks(new CharacteristicCallbacks());
+
+  // Set initial characteristic value with saved counts so reading it on connect works immediately
+  String initialPayload = "{\"countA\":" + String(countA) + ",\"countB\":" + String(countB) + ",\"total\":" + String(countA + countB) + "}";
+  pCharacteristic->setValue(initialPayload.c_str());
+
   pService->start();
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
@@ -300,17 +304,50 @@ void setup() {
   pAdvertising->setMinPreferred(0x06);
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-  Serial.println("Bluetooth Active as 'SmartBin' (Fast BLE advertising enabled)!");
+  Serial.println("Bluetooth Active as 'SmartBin' (Immediate telemetry enabled)!");
 }
 
 void loop() {
   server.handleClient();
+
+  // AUTOMATIC SYNC ON CONNECT WITHOUT WAITING FOR ENTRY
+  static bool wasConnected = false;
+  static unsigned long connectSyncTimer = 0;
+  static unsigned long lastHeartbeat = 0;
+
+  if (bleConnected && !wasConnected) {
+    wasConnected = true;
+    connectSyncTimer = millis();
+    showLCD(); // update LCD immediately on connect!
+  }
+  if (!bleConnected) {
+    wasConnected = false;
+  }
+
+  // Push telemetry 500ms after connect (when browser notifications are guaranteed active)
+  if (wasConnected && connectSyncTimer > 0 && (millis() - connectSyncTimer > 500)) {
+    connectSyncTimer = 0;
+    showLCD();
+    syncTelemetry();
+    Serial.println("Sent immediate telemetry to app on connect!");
+  }
+
+  // Heartbeat telemetry every 3 seconds while connected
+  if (bleConnected && (millis() - lastHeartbeat > 3000)) {
+    lastHeartbeat = millis();
+    showLCD();
+    syncTelemetry();
+  }
+
   // Check USB Serial commands
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\\n');
     cmd.trim();
     if (cmd.equalsIgnoreCase("RESET")) {
       resetCounts();
+    } else {
+      showLCD();
+      syncTelemetry();
     }
   }
 
@@ -376,19 +413,21 @@ void loop() {
           </button>
         </div>
 
-        {/* Live Counts Bar */}
-        <div className="my-2 p-2.5 bg-[#0E1E3C] border border-[#7FD8E8]/40 flex items-center justify-between font-mono text-xs">
+        {/* Live Counts Bar (Displays Real Hardware Counts) */}
+        <div className="my-2 p-2.5 bg-[#0E1E3C] border border-[#7FD8E8]/40 flex items-center justify-between font-mono text-xs shadow-inner">
           <div>
-            <span className="text-[10px] text-[#7FD8E8] uppercase block">CURRENT BIN COUNTS:</span>
+            <span className="text-[10px] text-[#7FD8E8] uppercase block font-bold">
+              CURRENT BIN COUNTS (REAL HARDWARE):
+            </span>
             <span className="font-bold text-[#F2EAD6]">
-              A: <span className="text-[#1F8F82] text-sm">{selectedUnit.counts.A}</span> · B:{' '}
-              <span className="text-[#F05A28] text-sm">{selectedUnit.counts.B}</span>
+              A: <span className="text-[#10B981] text-base font-black">{liveA}</span> · B:{' '}
+              <span className="text-[#F05A28] text-base font-black">{liveB}</span>
             </span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] text-[#7FD8E8] uppercase block">TOTAL:</span>
-            <span className="font-bold text-[#F2B33D] text-sm">
-              {selectedUnit.counts.A + selectedUnit.counts.B}
+            <span className="text-[10px] text-[#7FD8E8] uppercase block font-bold">TOTAL:</span>
+            <span className="font-bold text-[#F2B33D] text-base font-black">
+              {liveTotal}
             </span>
           </div>
         </div>
@@ -452,17 +491,6 @@ void loop() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('manual')}
-            className={`py-1.5 px-1 text-center uppercase font-bold cursor-pointer transition-colors ${
-              activeTab === 'manual'
-                ? 'bg-[#0E1E3C] text-[#F05A28] border border-[#F05A28]'
-                : 'text-[#F2EAD6]/70 hover:text-white'
-            }`}
-          >
-            4. MANUAL
-          </button>
-          <button
-            type="button"
             onClick={() => setActiveTab('code')}
             className={`py-1.5 px-1 text-center uppercase font-bold cursor-pointer transition-colors ${
               activeTab === 'code'
@@ -470,7 +498,7 @@ void loop() {
                 : 'text-[#F2EAD6]/70 hover:text-white'
             }`}
           >
-            5. CODE
+            4. CODE
           </button>
         </div>
 
@@ -547,17 +575,21 @@ void loop() {
                 className={`p-2 font-mono text-[11px] border ${
                   hardwareIsError
                     ? 'border-[#F05A28] bg-[#F05A28]/20 text-[#F05A28]'
+                    : activeHardwareMethod === 'bluetooth' && isHardwareConnected
+                    ? 'border-[#10B981] bg-[#10B981]/20 text-[#10B981]'
                     : 'border-[#7FD8E8]/40 bg-[#0E1E3C] text-[#7FD8E8]'
                 }`}
               >
-                Status: {hardwareStatusMsg}
+                Status: {activeHardwareMethod === 'bluetooth' && isHardwareConnected ? '⚡ Connected to SmartBin via Bluetooth!' : hardwareStatusMsg}
               </div>
 
-              {!isHardwareConnected ? (
+              {!(activeHardwareMethod === 'bluetooth' && isHardwareConnected) ? (
                 <button
                   type="button"
-                  onClick={connectDeviceBluetooth}
-                  className="w-full py-3.5 bg-[#7FD8E8] hover:bg-[#68c6d6] active:scale-98 text-[#0E1E3C] font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                  onClick={async () => {
+                    await connectDeviceBluetooth();
+                  }}
+                  className="w-full py-3.5 bg-[#7FD8E8] hover:bg-[#68c6d6] active:scale-98 text-[#0E1E3C] font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all"
                 >
                   <Bluetooth className="w-4 h-4" />
                   <span>SCAN & PAIR BLUETOOTH (SMARTBIN)</span>
@@ -574,9 +606,9 @@ void loop() {
                   <button
                     type="button"
                     onClick={disconnectDevice}
-                    className="py-2.5 bg-[#16336E] border border-[#7FD8E8]/40 text-[#F2EAD6] font-mono text-xs uppercase cursor-pointer"
+                    className="py-2.5 bg-[#16336E] border border-[#7FD8E8]/40 text-[#F2EAD6] font-mono text-xs uppercase cursor-pointer hover:bg-[#1E293B]"
                   >
-                    DISCONNECT
+                    DISCONNECT BLE
                   </button>
                 </div>
               )}
@@ -596,62 +628,37 @@ void loop() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={connectDeviceSerial}
-                className="w-full py-3.5 bg-[#F2B33D] hover:bg-[#dba032] active:scale-98 text-[#0E1E3C] font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg"
-              >
-                <Usb className="w-4 h-4" />
-                <span>SELECT USB SERIAL PORT</span>
-              </button>
+              {!(activeHardwareMethod === 'serial' && isHardwareConnected) ? (
+                <button
+                  type="button"
+                  onClick={connectDeviceSerial}
+                  className="w-full py-3.5 bg-[#F2B33D] hover:bg-[#dba032] active:scale-98 text-[#0E1E3C] font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                >
+                  <Usb className="w-4 h-4" />
+                  <span>SELECT USB SERIAL PORT</span>
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={sendHardwareReset}
+                    className="py-2.5 bg-[#0E1E3C] border border-[#F05A28] text-[#F05A28] hover:bg-[#F05A28] hover:text-white font-mono text-xs font-bold uppercase cursor-pointer"
+                  >
+                    RESET COUNTS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={disconnectDevice}
+                    className="py-2.5 bg-[#16336E] border border-[#7FD8E8]/40 text-[#F2EAD6] font-mono text-xs uppercase cursor-pointer hover:bg-[#1E293B]"
+                  >
+                    DISCONNECT USB
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 4: MANUAL DIRECT SYNC (FAST OVERRIDE) */}
-          {activeTab === 'manual' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-[#0E1E3C] border border-[#F05A28]/50 text-xs">
-                <span className="font-mono text-[10px] text-[#F05A28] uppercase block font-semibold mb-1 flex items-center gap-1.5">
-                  <Edit3 className="w-3.5 h-3.5 text-[#F05A28]" />
-                  MANUAL COUNT OVERRIDE / TESTER
-                </span>
-                <p className="font-archivo text-[#F2EAD6]/90 text-[11px] leading-relaxed">
-                  You can set or adjust counts directly here to verify reports, unbound queues, and merchant dashboards immediately:
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 font-mono text-xs">
-                <div>
-                  <label className="block text-[10px] text-[#7FD8E8] uppercase mb-1">HOLE A VOTES:</label>
-                  <input
-                    type="number"
-                    value={manualA}
-                    onChange={(e) => setManualA(Number(e.target.value))}
-                    className="w-full bg-[#0E1E3C] border border-[#7FD8E8]/40 p-2 font-mono text-sm text-[#F2EAD6]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-[#7FD8E8] uppercase mb-1">HOLE B VOTES:</label>
-                  <input
-                    type="number"
-                    value={manualB}
-                    onChange={(e) => setManualB(Number(e.target.value))}
-                    className="w-full bg-[#0E1E3C] border border-[#7FD8E8]/40 p-2 font-mono text-sm text-[#F2EAD6]"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleManualSync}
-                className="w-full py-3 bg-[#F05A28] hover:bg-[#d84818] active:scale-98 text-white font-mono font-bold text-xs uppercase tracking-wider cursor-pointer shadow-md"
-              >
-                APPLY & SYNC COUNTS TO APP
-              </button>
-            </div>
-          )}
-
-          {/* TAB 5: COMPLETE READY-TO-FLASH ARDUINO CODE */}
+          {/* TAB 4: COMPLETE READY-TO-FLASH ARDUINO CODE */}
           {activeTab === 'code' && (
             <div className="space-y-3">
               <div className="p-3 bg-[#0E1E3C] border border-[#1F8F82]/50 text-xs">

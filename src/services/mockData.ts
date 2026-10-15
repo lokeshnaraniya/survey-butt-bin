@@ -180,7 +180,7 @@ export const INITIAL_UNITS: Unit[] = [
     last_vote_time: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
     current_session_id: 4,
     storage_fill_pct: 18,
-    counts: { A: 412, B: 288 },
+    counts: { A: 0, B: 0 },
     location_id: 'loc-01',
     org_id: 'org-01',
   },
@@ -199,8 +199,8 @@ export const INITIAL_UNITS: Unit[] = [
     last_power_on: '2026-10-01T07:30:00Z',
     last_vote_time: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
     current_session_id: 3,
-    storage_fill_pct: 24,
-    counts: { A: 198, B: 341 },
+    storage_fill_pct: 0,
+    counts: { A: 0, B: 0 },
     location_id: 'loc-02',
     org_id: 'org-02',
   },
@@ -219,8 +219,8 @@ export const INITIAL_UNITS: Unit[] = [
     last_power_on: '2026-09-30T10:15:00Z',
     last_vote_time: new Date(Date.now() - 4 * 3600 * 1000).toISOString(),
     current_session_id: 5,
-    storage_fill_pct: 35,
-    counts: { A: 85, B: 112 },
+    storage_fill_pct: 0,
+    counts: { A: 0, B: 0 },
     location_id: 'loc-03',
     org_id: 'org-03',
   },
@@ -324,6 +324,20 @@ export const INITIAL_UNITS: Unit[] = [
 
 export const INITIAL_QUESTIONS: Question[] = [
   {
+    id: 'q-kota-airport',
+    text: 'KOTA AIRPORT WILL BE COMPLETED ON TIME? / क्या कोटा एयरपोर्ट समय पर पूरा होगा?',
+    language: 'English',
+    category: 'Civic',
+    options: [
+      { hole_id: 'A', label: 'YES / हाँ' },
+      { hole_id: 'B', label: 'NO / नहीं' },
+    ],
+    active_start: '2026-10-01',
+    active_end: '2026-12-31',
+    author: 'Code & Circuit SmartBin',
+    created_at: '2026-10-01T00:00:00Z',
+  },
+  {
     id: 'q-01',
     text: 'क्या कोटा में रात 10 बजे के बाद लाइब्रेरी खुलनी चाहिए? / Should student libraries stay open past 10 PM in Kota?',
     language: 'Hindi',
@@ -393,7 +407,7 @@ export const INITIAL_BINDINGS: QuestionBinding[] = [
     confidence: 'Medium-high',
     recorded_by: 'Admin / Ramesh (Prompt)',
     recorded_at: '2026-10-01T07:15:00Z',
-    votes_count: 700,
+    votes_count: 0,
     notes: 'Merchant confirmed question card change at morning reset.',
   },
   {
@@ -407,7 +421,7 @@ export const INITIAL_BINDINGS: QuestionBinding[] = [
     confidence: 'Medium',
     recorded_by: 'Staff (FA-Manoj)',
     recorded_at: '2026-10-01T08:00:00Z',
-    votes_count: 539,
+    votes_count: 0,
   },
   {
     id: 'bind-03',
@@ -420,7 +434,7 @@ export const INITIAL_BINDINGS: QuestionBinding[] = [
     confidence: 'Medium-high',
     recorded_by: 'Staff (FA-Pooja)',
     recorded_at: '2026-09-30T11:00:00Z',
-    votes_count: 197,
+    votes_count: 0,
   },
   {
     id: 'bind-04',
@@ -433,7 +447,7 @@ export const INITIAL_BINDINGS: QuestionBinding[] = [
     confidence: 'Medium',
     recorded_by: 'Admin Team',
     recorded_at: '2026-09-28T08:30:00Z',
-    votes_count: 610,
+    votes_count: 0,
   },
   // Unbound session in the queue (Section 10 & 16)
   {

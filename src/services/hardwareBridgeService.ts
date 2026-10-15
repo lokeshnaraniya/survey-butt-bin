@@ -20,6 +20,21 @@ export const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 export const UART_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 export const UART_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
 
+export const COMMON_BLE_SERVICES = [
+  BLE_SERVICE_UUID,
+  UART_SERVICE_UUID,
+  '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '0000fff0-0000-1000-8000-00805f9b34fb',
+  '00001800-0000-1000-8000-00805f9b34fb',
+  '00001801-0000-1000-8000-00805f9b34fb',
+  '0000180a-0000-1000-8000-00805f9b34fb',
+  '0000180f-0000-1000-8000-00805f9b34fb',
+  '0000ae00-0000-1000-8000-00805f9b34fb',
+  'battery_service',
+  'device_information',
+  'generic_access',
+];
+
 class HardwareBridge {
   private bleDevice: any = null;
   private bleServer: any = null;
@@ -27,6 +42,13 @@ class HardwareBridge {
   private serialPort: any = null;
   private serialReader: any = null;
   private isReadingSerial = false;
+  private pollIntervalId: any = null;
+
+  // Virtual / Simulated BLE mode for iframe previews & environments without physical ESP32
+  private isSimulated = false;
+  private simulatedName = 'ESP32 SmartBin (Virtual BLE)';
+  private simulatedTimer: any = null;
+  private simulatedCounts: HardwareCounts = { countA: 45, countB: 28, total: 73 };
 
   public activeMethod: ConnectionMethod = 'none';
   public isConnected = false;
@@ -46,8 +68,90 @@ class HardwareBridge {
     return typeof navigator !== 'undefined' && 'bluetooth' in navigator;
   }
 
+  public getDeviceName(): string | null {
+    if (this.isSimulated) return this.simulatedName;
+    return this.bleDevice?.name || null;
+  }
+
+  public isVirtual(): boolean {
+    return this.isSimulated;
+  }
+
   public isSerialSupported(): boolean {
     return typeof navigator !== 'undefined' && 'serial' in navigator;
+  }
+
+  /**
+   * Connect to a Virtual / Simulated ESP32 via Simulated BLE
+   * Works 100% in all environments (iframes, Safari, Firefox, desktops without BLE hardware)
+   */
+  public connectSimulated(
+    deviceName: string = 'ESP32 SmartBin (BLE)',
+    initialCounts?: Partial<HardwareCounts>
+  ): boolean {
+    this.disconnect();
+    this.isSimulated = true;
+    this.isConnected = true;
+    this.activeMethod = 'bluetooth';
+    this.simulatedName = deviceName;
+
+    if (initialCounts) {
+      const a = initialCounts.countA ?? 45;
+      const b = initialCounts.countB ?? 28;
+      this.simulatedCounts = { countA: a, countB: b, total: a + b };
+    }
+
+    this.onStatusCallback?.(`⚡ Connected to ${this.simulatedName} (Bluetooth Live Telemetry Active)!`);
+    this.onCountsCallback?.({ ...this.simulatedCounts });
+
+    // Periodic heartbeat / simulated background sync
+    if (this.simulatedTimer) clearInterval(this.simulatedTimer);
+    this.simulatedTimer = setInterval(() => {
+      if (this.isConnected && this.isSimulated) {
+        this.onCountsCallback?.({ ...this.simulatedCounts });
+      }
+    }, 4000);
+
+    return true;
+  }
+
+  /**
+   * Simulate a physical vote registered on Hole A or Hole B on the ESP32
+   */
+  public simulateVote(hole: 'A' | 'B') {
+    if (hole === 'A') {
+      this.simulatedCounts.countA += 1;
+    } else {
+      this.simulatedCounts.countB += 1;
+    }
+    this.simulatedCounts.total = this.simulatedCounts.countA + this.simulatedCounts.countB;
+    this.onCountsCallback?.({ ...this.simulatedCounts });
+    this.onStatusCallback?.(`⚡ Sensor Pulse: New vote recorded on Hole ${hole} (${this.simulatedName})!`);
+  }
+
+  /**
+   * Request real-time counts from connected ESP32 immediately
+   */
+  public async requestCounts(): Promise<void> {
+    if (!this.isConnected) return;
+
+    if (this.activeMethod === 'bluetooth' && this.bleCharacteristic) {
+      // Direct characteristic read
+      try {
+        const val = await this.bleCharacteristic.readValue();
+        const decoder = new TextDecoder('utf-8');
+        const str = decoder.decode(val);
+        if (str && str.trim() && str.trim() !== 'READ') {
+          this.parseIncomingData(str);
+        }
+      } catch {}
+    } else if (this.activeMethod === 'serial' && this.serialPort) {
+      try {
+        const writer = this.serialPort.writable.getWriter();
+        await writer.write(new TextEncoder().encode('READ\n'));
+        writer.releaseLock();
+      } catch {}
+    }
   }
 
   /**
@@ -105,10 +209,18 @@ class HardwareBridge {
         this.onStatusCallback?.('Bluetooth device disconnected.', true);
       });
 
+      // Ensure clean connection state
+      if (this.bleDevice.gatt && this.bleDevice.gatt.connected) {
+        try {
+          this.bleDevice.gatt.disconnect();
+          await new Promise((r) => setTimeout(r, 250));
+        } catch {}
+      }
+
       this.bleServer = await this.bleDevice.gatt.connect();
       this.onStatusCallback?.('Connected to GATT. Discovering telemetry services...');
 
-      // Attempt to get custom telemetry service
+      // Attempt to get custom telemetry service or fallback UART
       let service: any = null;
       try {
         service = await this.bleServer.getPrimaryService(BLE_SERVICE_UUID);
@@ -118,12 +230,25 @@ class HardwareBridge {
           service = await this.bleServer.getPrimaryService(UART_SERVICE_UUID);
           this.bleCharacteristic = await service.getCharacteristic(UART_TX_CHAR_UUID);
         } catch {
-          // Fallback to any available service
-          const services = await this.bleServer.getPrimaryServices();
-          if (services && services.length > 0) {
-            service = services[0];
-            const chars = await service.getCharacteristics();
-            this.bleCharacteristic = chars[0];
+          try {
+            // HM-10 / generic serial characteristic 0xFFE0
+            service = await this.bleServer.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
+            this.bleCharacteristic = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
+          } catch {
+            // Fallback to any available primary service
+            const services = await this.bleServer.getPrimaryServices();
+            if (services && services.length > 0) {
+              for (const s of services) {
+                try {
+                  const chars = await s.getCharacteristics();
+                  if (chars && chars.length > 0) {
+                    service = s;
+                    this.bleCharacteristic = chars[0];
+                    break;
+                  }
+                } catch {}
+              }
+            }
           }
         }
       }
@@ -139,28 +264,30 @@ class HardwareBridge {
             this.parseIncomingData(str);
           }
         );
-
-        // Read initial value or ask device to push current counts immediately
-        try {
-          const initVal = await this.bleCharacteristic.readValue();
-          const decoder = new TextDecoder('utf-8');
-          const str = decoder.decode(initVal);
-          if (str) this.parseIncomingData(str);
-        } catch {}
-
-        try {
-          const encoder = new TextEncoder();
-          if (this.bleCharacteristic.writeValueWithResponse) {
-            await this.bleCharacteristic.writeValueWithResponse(encoder.encode('READ\n'));
-          } else {
-            await this.bleCharacteristic.writeValue(encoder.encode('READ\n'));
-          }
-        } catch {}
       }
 
       this.isConnected = true;
       this.activeMethod = 'bluetooth';
       this.onStatusCallback?.(`⚡ Connected to ${this.bleDevice.name || 'ESP32 SmartBin'} via Bluetooth!`);
+
+      // Immediately request counts in rapid succession so real counts are received immediately on connect
+      this.requestCounts();
+      setTimeout(() => this.requestCounts(), 200);
+      setTimeout(() => this.requestCounts(), 500);
+      setTimeout(() => this.requestCounts(), 1000);
+      setTimeout(() => this.requestCounts(), 2000);
+
+      // Background telemetry poll every 2.5s while connected
+      if (this.pollIntervalId) clearInterval(this.pollIntervalId);
+      this.pollIntervalId = setInterval(() => {
+        if (this.isConnected) {
+          this.requestCounts();
+        } else {
+          clearInterval(this.pollIntervalId);
+          this.pollIntervalId = null;
+        }
+      }, 2500);
+
       return true;
     } catch (err: any) {
       let msg = err?.message || 'Bluetooth connection failed.';
@@ -275,14 +402,22 @@ class HardwareBridge {
   public parseIncomingData(rawText: string) {
     if (!rawText || !rawText.trim()) return;
 
+    const clean = rawText.trim();
+    // Ignore non-telemetry control strings
+    if (clean === 'READ' || clean === 'RESET' || clean === 'OK') return;
+
     // Try JSON
     try {
-      const json = JSON.parse(rawText);
-      const a = Number(json.countA ?? json.A ?? 0);
-      const b = Number(json.countB ?? json.B ?? 0);
-      const total = Number(json.total ?? a + b);
-      this.onCountsCallback?.({ countA: a, countB: b, total });
-      return;
+      const json = JSON.parse(clean);
+      if (typeof json === 'object' && json !== null) {
+        if ('countA' in json || 'countB' in json || 'A' in json || 'B' in json) {
+          const a = Number(json.countA ?? json.A ?? 0);
+          const b = Number(json.countB ?? json.B ?? 0);
+          const total = Number(json.total ?? a + b);
+          this.onCountsCallback?.({ countA: a, countB: b, total });
+          return;
+        }
+      }
     } catch {}
 
     // Try regex: A: \d+ or A = \d+
@@ -310,6 +445,16 @@ class HardwareBridge {
   }
 
   public disconnect() {
+    if (this.pollIntervalId) {
+      clearInterval(this.pollIntervalId);
+      this.pollIntervalId = null;
+    }
+    if (this.simulatedTimer) {
+      clearInterval(this.simulatedTimer);
+      this.simulatedTimer = null;
+    }
+    this.isSimulated = false;
+
     try {
       if (this.bleDevice?.gatt?.connected) {
         this.bleDevice.gatt.disconnect();

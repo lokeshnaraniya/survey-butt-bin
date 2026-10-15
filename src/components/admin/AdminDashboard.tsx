@@ -36,10 +36,18 @@ import {
   Trash2,
   TrendingUp,
   Users,
+  Key,
+  Copy,
 } from 'lucide-react';
 import { SAMPLE_HOURLY_FOOTFALL } from '../../services/mockData';
 import { BindingConfidence, BindingSource, UnitHealth } from '../../types';
 import { SavedHistory } from './SavedHistory';
+import { ShopkeeperManagementModal } from './ShopkeeperManagementModal';
+import {
+  fetchMerchantsFromServer,
+  deleteMerchant,
+  MerchantProfile,
+} from '../../services/merchantSyncService';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -63,6 +71,22 @@ export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'history' | 'unbound' | 'fleet' | 'questions' | 'reports' | 'merchants' | 'config'
   >('history');
+
+  const [shopkeeperModalOpen, setShopkeeperModalOpen] = useState(false);
+  const [merchantsList, setMerchantsList] = useState<MerchantProfile[]>([]);
+
+  const loadMerchants = async () => {
+    try {
+      const list = await fetchMerchantsFromServer();
+      setMerchantsList(list);
+    } catch {}
+  };
+
+  const [copiedMerchantId, setCopiedMerchantId] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    loadMerchants();
+  }, []);
 
   // Filter states for fleet
   const [healthFilter, setHealthFilter] = useState<string>('all');
@@ -311,8 +335,8 @@ export const AdminDashboard: React.FC = () => {
                 : 'border-transparent text-[#F2EAD6]/70 hover:text-[#F2EAD6]'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
-            <span>MERCHANT PERFORMANCE</span>
+            <Store className="w-3.5 h-3.5" />
+            <span>🏪 SHOPKEEPERS & BINS ({merchantsList.length})</span>
           </button>
 
           <button
@@ -953,19 +977,175 @@ export const AdminDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* ================= TAB 5: MERCHANT PERFORMANCE & LEADERBOARD (Section 11) ================= */}
+        {/* ================= TAB 5: SHOPKEEPER & SMART BIN ALLOCATION ================= */}
         {activeTab === 'merchants' && (
-          <div className="space-y-4">
-            <div className="border border-[#0E1E3C]/30 bg-white/60 p-4">
-              <h2 className="font-michroma text-base text-[#0E1E3C] uppercase">
-                MERCHANT COURIER PERFORMANCE LEADERBOARD
-              </h2>
-              <p className="font-archivo text-xs text-[#0E1E3C]/80 mt-0.5">
-                The pilot's core scientific hypothesis: does merchant-as-gateway work? Target is 3 syncs/day.
-              </p>
+          <div className="space-y-6">
+            {/* Top Header & Add Shopkeeper CTA */}
+            <div className="border border-[#0E1E3C]/30 bg-white/70 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-michroma text-sm sm:text-base text-[#0E1E3C] uppercase flex items-center gap-2">
+                    <Store className="w-4 h-4 text-[#F2B33D]" />
+                    <span>Shopkeeper & Smart Bin Allocation</span>
+                  </h2>
+                  <span className="text-[10px] font-mono font-bold bg-[#16336E] text-[#7FD8E8] px-2 py-0.5 rounded">
+                    Total: {merchantsList.length} Shopkeepers
+                  </span>
+                </div>
+                <p className="font-archivo text-xs text-[#0E1E3C]/80 mt-1">
+                  Dukandar ka naam, location, mobile number aur unhe konsa bin allot hua hai yahan se manage karein.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShopkeeperModalOpen(true)}
+                className="px-4 py-2 bg-[#F2B33D] hover:bg-[#d99e30] text-[#070D18] font-bold rounded-xl flex items-center gap-2 cursor-pointer transition-all shadow-md active:scale-95 text-xs font-mono"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Add / Register Shopkeeper (+ नया दुकानदार)</span>
+              </button>
             </div>
 
-            <div className="border-2 border-[#0E1E3C] bg-white p-4 overflow-x-auto shadow-sm">
+            {/* REAL REGISTERED SHOPKEEPERS GRID */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-mono text-xs font-bold text-[#0E1E3C] uppercase tracking-wider">
+                  REGISTERED SHOPKEEPERS & ASSIGNED BINS ({merchantsList.length})
+                </h3>
+                <span className="text-[11px] font-mono text-[#0E1E3C]/70">
+                  Real-time Server Database Sync
+                </span>
+              </div>
+
+              {merchantsList.length === 0 ? (
+                <div className="bg-white border-2 border-dashed border-[#0E1E3C]/30 p-8 text-center rounded-xl font-mono text-xs text-[#0E1E3C]/70">
+                  Loading shopkeepers from database...
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {merchantsList.map((m) => (
+                    <div
+                      key={m.id}
+                      className="bg-white border-2 border-[#0E1E3C] rounded-xl p-4 shadow-sm flex flex-col justify-between space-y-3 font-mono"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2 border-b border-[#0E1E3C]/10 pb-2">
+                          <div>
+                            <div className="text-[11px] text-[#F05A28] font-bold flex items-center gap-1">
+                              <Store className="w-3.5 h-3.5" />
+                              <span>{m.shopName}</span>
+                            </div>
+                            <h4 className="text-sm font-bold text-[#0E1E3C] font-sans mt-0.5">
+                              {m.name}
+                            </h4>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#1F8F82]/15 border border-[#1F8F82] text-[#1F8F82] font-bold text-xs">
+                              <Radio className="w-3 h-3" />
+                              <span>{m.assignedBinSerial}</span>
+                            </span>
+                            <span className="block text-[9px] text-[#0E1E3C]/60 mt-0.5">
+                              Allotted Bin
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Location */}
+                        <div className="p-2 bg-[#0E1E3C]/5 rounded-lg border border-[#0E1E3C]/10 text-xs text-[#0E1E3C] flex items-start gap-1.5 font-sans">
+                          <MapPin className="w-3.5 h-3.5 text-[#0E1E3C] shrink-0 mt-0.5" />
+                          <div>
+                            <span className="text-[9px] text-[#0E1E3C]/60 font-mono font-bold block uppercase">
+                              Location / Landmark:
+                            </span>
+                            <span>{m.locality}</span>
+                          </div>
+                        </div>
+
+                        {/* Phone */}
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          <span className="text-[#0E1E3C]/70 flex items-center gap-1">
+                            Phone: <b className="text-[#0E1E3C]">{m.phone}</b>
+                          </span>
+                          <a
+                            href={`tel:${m.phone}`}
+                            className="px-2 py-0.5 bg-[#1F8F82]/10 hover:bg-[#1F8F82]/20 text-[#1F8F82] rounded font-bold border border-[#1F8F82]/30 text-[10px]"
+                          >
+                            Call
+                          </a>
+                        </div>
+
+                        {/* Login Credentials Box */}
+                        <div className="p-2 bg-[#0E1E3C]/5 rounded-lg border border-[#0E1E3C]/10 text-xs flex items-center justify-between">
+                          <span className="text-[#0E1E3C]/70 flex items-center gap-1 font-mono text-[11px]">
+                            <Key className="w-3 h-3 text-[#F2B33D]" />
+                            <span>Password: <b className="text-[#0E1E3C] bg-white px-1.5 py-0.2 rounded border border-[#0E1E3C]/20">{m.password || '1234'}</b></span>
+                          </span>
+                          <span className="text-[9px] text-[#0E1E3C]/50 font-mono">
+                            (Login PIN)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Actions */}
+                      <div className="flex items-center justify-between pt-2 border-t border-[#0E1E3C]/10 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setShopkeeperModalOpen(true)}
+                            className="px-2.5 py-1 bg-[#0E1E3C] text-white hover:bg-[#16336E] rounded font-bold text-[10px] cursor-pointer"
+                          >
+                            Edit / Reassign
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = `Code & Circuit - Shopkeeper Login Details:\nWebsite: ${window.location.origin}\nUser ID (Mobile): ${m.phone}\nPassword: ${m.password || '1234'}\nAssigned Smart Bin: ${m.assignedBinSerial}\nShop: ${m.shopName}`;
+                              navigator.clipboard.writeText(text);
+                              setCopiedMerchantId(m.id);
+                              setTimeout(() => setCopiedMerchantId(null), 2500);
+                            }}
+                            className="px-2 py-1 bg-white hover:bg-[#0E1E3C]/5 text-[#0E1E3C] border border-[#0E1E3C]/30 rounded font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                            title="Copy credentials to send to shopkeeper"
+                          >
+                            {copiedMerchantId === m.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-[#1F8F82]" />
+                                <span className="text-[#1F8F82]">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-[#0E1E3C]/60" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(`Delete shopkeeper "${m.name}"?`)) return;
+                            await deleteMerchant(m.id);
+                            loadMerchants();
+                          }}
+                          className="p-1 text-[#EF4444] hover:bg-[#EF4444]/10 rounded cursor-pointer"
+                          title="Delete shopkeeper"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* LEADERBOARD TABLE */}
+            <div className="border-2 border-[#0E1E3C] bg-white p-4 overflow-x-auto shadow-sm space-y-3">
+              <h3 className="font-michroma text-xs text-[#0E1E3C] uppercase">
+                COURIER SYNC PERFORMANCE LEADERBOARD (TARGET: 3 SYNCS / DAY)
+              </h3>
               <table className="w-full text-left font-mono text-xs">
                 <thead className="bg-[#0E1E3C]/5 text-[10px] uppercase border-b-2 border-[#0E1E3C]">
                   <tr>
@@ -983,7 +1163,7 @@ export const AdminDashboard: React.FC = () => {
                     <td className="p-3 font-bold text-[#F2B33D]">★ #1</td>
                     <td className="p-3">
                       <div className="font-bold">Ramesh Tiwari</div>
-                      <div className="text-[10px] text-[#0E1E3C]/70">Shree Balaji Paan, Rangbari</div>
+                      <div className="text-[10px] text-[#0E1E3C]/70">Sharma Tea Point & Cafe, Gumanpura</div>
                     </td>
                     <td className="p-3 font-bold">CC-BIN-01</td>
                     <td className="p-3 font-bold text-[#1F8F82]">3.2 / day</td>
@@ -999,8 +1179,8 @@ export const AdminDashboard: React.FC = () => {
                   <tr className="hover:bg-white/80">
                     <td className="p-3 font-bold text-[#0E1E3C]">#2</td>
                     <td className="p-3">
-                      <div className="font-bold">Suresh Sharma</div>
-                      <div className="text-[10px] text-[#0E1E3C]/70">Jai Hind Corner, Talwandi</div>
+                      <div className="font-bold">Gopal Soni</div>
+                      <div className="text-[10px] text-[#0E1E3C]/70">Jai Hind Refreshment Stall, Talwandi</div>
                     </td>
                     <td className="p-3 font-bold">CC-BIN-02</td>
                     <td className="p-3 font-bold text-[#1F8F82]">2.8 / day</td>
@@ -1016,8 +1196,8 @@ export const AdminDashboard: React.FC = () => {
                   <tr className="hover:bg-white/80">
                     <td className="p-3 font-bold text-[#0E1E3C]">#3</td>
                     <td className="p-3">
-                      <div className="font-bold">Vikram Chauhan</div>
-                      <div className="text-[10px] text-[#0E1E3C]/70">Kota Chai, Vigyan Nagar</div>
+                      <div className="font-bold">Mohan Lal</div>
+                      <div className="text-[10px] text-[#0E1E3C]/70">Kota Chai Point, Vigyan Nagar</div>
                     </td>
                     <td className="p-3 font-bold">CC-BIN-03</td>
                     <td className="p-3 font-bold text-[#F2B33D]">1.4 / day</td>
@@ -1033,8 +1213,8 @@ export const AdminDashboard: React.FC = () => {
                   <tr className="hover:bg-white/80">
                     <td className="p-3 font-bold text-[#F05A28]">#4</td>
                     <td className="p-3">
-                      <div className="font-bold">Deepak Verma</div>
-                      <div className="text-[10px] text-[#0E1E3C]/70">Royal Paan Palace, Gumanpura</div>
+                      <div className="font-bold">Shankar Lal</div>
+                      <div className="text-[10px] text-[#0E1E3C]/70">Royal Paan Palace, Indra Vihar</div>
                     </td>
                     <td className="p-3 font-bold">CC-BIN-04</td>
                     <td className="p-3 font-bold text-[#F05A28]">0.4 / day</td>
@@ -1539,6 +1719,17 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Shopkeeper Management Modal */}
+      <ShopkeeperManagementModal
+        isOpen={shopkeeperModalOpen}
+        onClose={() => {
+          setShopkeeperModalOpen(false);
+          loadMerchants();
+        }}
+        onMerchantUpdated={loadMerchants}
+        currentRole="admin"
+      />
     </div>
   );
 };

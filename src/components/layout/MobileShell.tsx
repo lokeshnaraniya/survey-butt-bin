@@ -10,53 +10,76 @@ import { FirstLaunchModal } from '../auth/FirstLaunchModal';
 import { AdminLoginModal } from '../auth/AdminLoginModal';
 import { DeviceWifiSyncModal } from '../device/DeviceWifiSyncModal';
 import { LiveSurveyPanel } from '../device/LiveSurveyPanel';
+import { StaffManagementModal } from '../admin/StaffManagementModal';
+import { ShopkeeperManagementModal } from '../admin/ShopkeeperManagementModal';
 import {
+  ArrowLeft,
   Bluetooth,
   BookOpen,
   Cpu,
-  Layers,
   LogOut,
-  Monitor,
-  Phone,
   Radio,
-  RefreshCw,
   ShieldAlert,
   ShieldCheck,
-  Smartphone,
   Store,
   Terminal,
   Wifi,
   WifiOff,
   Wrench,
+  Users,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { Role } from '../../types';
 
-export const MobileShell: React.FC = () => {
+interface MobileShellProps {
+  onBackToWebsite?: () => void;
+  onStaffLogout?: () => void;
+  activeStaff?: any;
+}
+
+export const MobileShell: React.FC<MobileShellProps> = ({
+  onBackToWebsite,
+  onStaffLogout,
+  activeStaff,
+}) => {
   const {
     role,
     setRole,
-    isMobileFrame,
-    setIsMobileFrame,
     isOnline,
     setIsOnline,
-    hardware,
-    setSimulatorOpen,
     isAdminAuthenticated,
     adminLogout,
     setAdminAuthModalOpen,
     deviceWifiModalOpen,
     setDeviceWifiModalOpen,
+    setSimulatorOpen,
   } = useApp();
 
   const [firstLaunchOpen, setFirstLaunchOpen] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [shopkeeperModalOpen, setShopkeeperModalOpen] = useState(false);
+  const [showLiveSurveyPanel, setShowLiveSurveyPanel] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#0E1E3C] flex flex-col font-archivo text-[#F2EAD6] select-none">
-      {/* Global Mission Control Header */}
-      <header className="bg-[#081226] border-b border-[#7FD8E8]/30 px-3 py-2 shrink-0 z-40">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          {/* Brand Mark & Title (Clicking logo 3 times or prompt allows discreet staff entry) */}
+    <div className="min-h-screen bg-[#070D18] flex flex-col font-sans text-[#F2EAD6]">
+      {/* Clean, Non-Congested Operational Bar */}
+      <header className="bg-[#0C1628] border-b border-[#1E293B] px-3 sm:px-4 py-2.5 shrink-0 z-40 shadow-md">
+        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          {/* Brand Mark & Back Button */}
           <div className="flex items-center space-x-2.5">
+            {onBackToWebsite && (
+              <button
+                type="button"
+                onClick={onBackToWebsite}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1F8F82] hover:bg-[#18756a] text-white font-bold cursor-pointer rounded-xl font-mono text-xs transition-colors shadow"
+                title="Return to Public Website"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">← Public Website</span>
+                <span className="sm:hidden">← Site</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -69,249 +92,173 @@ export const MobileShell: React.FC = () => {
               className="flex items-center space-x-2 cursor-pointer group"
               title="Staff Terminal: Click for Admin Authentication"
             >
-              <CodeCircuitLogo size={28} strokeColor="#F2EAD6" sparkColor="#7FD8E8" />
-              <div className="text-left">
+              <CodeCircuitLogo size={26} strokeColor="#F2EAD6" sparkColor="#7FD8E8" />
+              <div className="text-left font-mono">
                 <div className="flex items-center space-x-1.5">
-                  <span className="font-michroma text-xs tracking-wider text-[#F2EAD6] group-hover:text-[#7FD8E8] transition-colors">
+                  <span className="font-bold text-xs tracking-wider text-white group-hover:text-[#7FD8E8] transition-colors">
                     CODE & CIRCUIT
                   </span>
-                  <span className="font-mono text-[9px] bg-[#16336E] text-[#7FD8E8] px-1 py-0.2 border border-[#7FD8E8]/30">
-                    CW-01
+                  <span className="text-[10px] bg-[#16336E] text-[#7FD8E8] px-1.5 py-0.2 rounded border border-[#7FD8E8]/30 font-bold">
+                    STAFF PORTAL
                   </span>
                 </div>
-                <span className="font-mono text-[9px] text-[#7FD8E8]/70 block">
-                  SURVEY BIN TELEMETRY
+                <span className="text-[10px] text-[#94A3B8] block">
+                  Kota Smart Bins Management
                 </span>
               </div>
             </button>
           </div>
 
-          {/* Role Switcher (Admin button is HIDDEN when not authenticated) */}
-          <div className="flex items-center bg-[#0E1E3C] border border-[#7FD8E8]/40 p-0.5 font-mono text-[10px]">
-            <button
-              type="button"
-              onClick={() => setRole('merchant')}
-              className={`px-2.5 py-1 flex items-center space-x-1 transition-all cursor-pointer ${
-                role === 'merchant'
-                  ? 'bg-[#F05A28] text-white font-bold'
-                  : 'text-[#F2EAD6]/70 hover:text-[#F2EAD6]'
-              }`}
-            >
-              <Store className="w-3 h-3" />
-              <span>MERCHANT</span>
-            </button>
-
-            {/* Admin button ONLY shown when authenticated */}
-            {isAdminAuthenticated && (
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`px-2.5 py-1 flex items-center space-x-1 transition-all cursor-pointer ${
-                    role === 'admin' || role === 'super_admin'
-                      ? 'bg-[#16336E] text-[#7FD8E8] border border-[#7FD8E8]/50 font-bold'
-                      : 'text-[#7FD8E8] hover:text-white'
-                  }`}
-                >
-                  <ShieldCheck className="w-3 h-3 text-[#1F8F82]" />
-                  <span>ADMIN ACTIVE</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={adminLogout}
-                  title="Log out of Admin"
-                  className="px-1.5 py-1 text-[#F05A28] hover:bg-[#F05A28]/20 cursor-pointer"
-                >
-                  <LogOut className="w-3 h-3" />
-                </button>
-              </div>
-            )}
-
+          {/* Clean Role Switcher */}
+          <div className="flex items-center bg-[#070D18] border border-[#334155] rounded-xl p-1 font-mono text-xs">
             <button
               type="button"
               onClick={() => setRole('field_agent')}
-              className={`px-2.5 py-1 flex items-center space-x-1 transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-bold ${
                 role === 'field_agent'
-                  ? 'bg-[#1F8F82] text-white font-bold'
-                  : 'text-[#F2EAD6]/70 hover:text-[#F2EAD6]'
+                  ? 'bg-[#1F8F82] text-white shadow'
+                  : 'text-[#94A3B8] hover:text-white'
               }`}
             >
-              <Wrench className="w-3 h-3" />
-              <span>FIELD AGENT</span>
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Staff Field View</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setRole('student')}
-              className={`px-2.5 py-1 flex items-center space-x-1 transition-all cursor-pointer ${
-                role === 'student'
-                  ? 'bg-[#F2B33D] text-[#0E1E3C] font-bold'
-                  : 'text-[#F2EAD6]/70 hover:text-[#F2EAD6]'
+              onClick={() => setRole('merchant')}
+              className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-bold ${
+                role === 'merchant'
+                  ? 'bg-[#F2B33D] text-black shadow'
+                  : 'text-[#94A3B8] hover:text-white'
               }`}
             >
-              <BookOpen className="w-3 h-3" />
-              <span>ROBOTICS</span>
+              <Store className="w-3.5 h-3.5" />
+              <span>Shopkeeper View</span>
             </button>
+
+            {isAdminAuthenticated && (
+              <button
+                type="button"
+                onClick={() => setRole('admin')}
+                className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer font-bold ${
+                  role === 'admin' || role === 'super_admin'
+                    ? 'bg-[#3B82F6] text-white shadow'
+                    : 'text-[#94A3B8] hover:text-white'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin Console</span>
+              </button>
+            )}
           </div>
 
-          {/* Quick Diagnostics, Wi-Fi Hardware Sync & Viewport Controls */}
-          <div className="flex items-center space-x-2">
-            {/* Real ESP32 Direct Hardware Connect Button */}
+          {/* Quick Actions: Shopkeeper modal + Staff modal + Hardware connect + Logout */}
+          <div className="flex items-center gap-2 font-mono text-xs">
+            {/* Manage Shopkeepers Button */}
             <button
               type="button"
-              onClick={() => setDeviceWifiModalOpen(true)}
-              className="px-2.5 py-1 bg-[#0E1E3C] border-2 border-[#1F8F82] hover:bg-[#16336E] text-[#1F8F82] text-[10px] font-mono font-bold flex items-center space-x-1 cursor-pointer shadow-md"
-              title="Connect directly to physical ESP32 SmartBin (Bluetooth / USB / Wi-Fi)"
+              onClick={() => setShopkeeperModalOpen(true)}
+              className="px-2.5 py-1.5 bg-[#F2B33D]/15 hover:bg-[#F2B33D]/25 border border-[#F2B33D]/40 text-[#F2B33D] rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Add, view & manage shopkeepers"
             >
-              <Bluetooth className="w-3.5 h-3.5 animate-pulse text-[#1F8F82]" />
-              <span>CONNECT ESP32</span>
+              <Store className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">🏪 Shopkeepers</span>
             </button>
 
-            {/* Online / Offline switch */}
+            {/* Manage Staff Button */}
             <button
               type="button"
-              onClick={() => setIsOnline(!isOnline)}
-              title={isOnline ? 'Online (Click to toggle offline mode)' : 'Offline (Click to restore online)'}
-              className={`px-2 py-1 border text-[10px] font-mono flex items-center space-x-1 cursor-pointer ${
-                isOnline
-                  ? 'border-[#1F8F82]/50 text-[#1F8F82] bg-[#1F8F82]/10'
-                  : 'border-[#F2B33D]/60 text-[#F2B33D] bg-[#F2B33D]/10'
-              }`}
+              onClick={() => setStaffModalOpen(true)}
+              className="px-2.5 py-1.5 bg-[#8B5CF6]/15 hover:bg-[#8B5CF6]/25 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Add or remove authorized staff members"
             >
-              {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-              <span>{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">👥 Staff</span>
             </button>
 
-            {/* Mobile Frame vs Desktop Toggle */}
-            <div className="hidden sm:flex items-center bg-[#0E1E3C] border border-[#7FD8E8]/30 font-mono text-[10px]">
+            {/* Hardware Live Survey toggle */}
+            <button
+              type="button"
+              onClick={() => setShowLiveSurveyPanel(!showLiveSurveyPanel)}
+              className="px-2.5 py-1.5 bg-[#1E293B] hover:bg-[#334155] border border-[#334155] text-[#38BDF8] rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              title={showLiveSurveyPanel ? 'Hide Hardware Panel' : 'Show Live Hardware Panel'}
+            >
+              <Cpu className="w-3.5 h-3.5 text-[#38BDF8]" />
+              <span className="hidden md:inline">ESP32 Monitor</span>
+              {showLiveSurveyPanel ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {activeStaff && (
+              <span className="hidden xl:inline text-[#7FD8E8] font-mono text-[11px] px-2 py-1 bg-[#16336E] rounded-lg border border-[#7FD8E8]/30">
+                Staff: <b>{activeStaff.name}</b>
+              </span>
+            )}
+
+            {onStaffLogout && (
               <button
                 type="button"
-                onClick={() => setIsMobileFrame(true)}
-                className={`p-1.5 cursor-pointer ${
-                  isMobileFrame ? 'bg-[#16336E] text-[#7FD8E8]' : 'text-[#F2EAD6]/60'
-                }`}
-                title="Mobile Viewport (390px)"
+                onClick={onStaffLogout}
+                className="px-2.5 py-1.5 bg-[#EF4444]/20 hover:bg-[#EF4444]/30 text-[#EF4444] border border-[#EF4444]/40 rounded-xl font-bold font-mono text-xs cursor-pointer flex items-center gap-1 transition-colors"
+                title="Logout from Staff Terminal"
               >
-                <Smartphone className="w-3.5 h-3.5" />
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setIsMobileFrame(false)}
-                className={`p-1.5 cursor-pointer ${
-                  !isMobileFrame ? 'bg-[#16336E] text-[#7FD8E8]' : 'text-[#F2EAD6]/60'
-                }`}
-                title="Desktop Responsive Viewport"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Hardware Lab Trigger */}
-            <button
-              type="button"
-              onClick={() => setSimulatorOpen(true)}
-              className="px-2.5 py-1 bg-[#16336E] border border-[#7FD8E8] hover:bg-[#1f408a] text-[#7FD8E8] text-[10px] font-mono font-bold flex items-center space-x-1 cursor-pointer"
-            >
-              <Cpu className="w-3.5 h-3.5 text-[#F2B33D]" />
-              <span className="hidden md:inline">ESP32 LAB</span>
-            </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Viewport Container */}
       <main className="flex-1 flex flex-col items-center justify-start overflow-y-auto relative w-full">
-        {/* Live ESP32 Hardware Survey Panel */}
-        <LiveSurveyPanel />
-
-        <p className="w-full max-w-7xl px-4 pb-2 text-[10px] font-mono text-[#7FD8E8]/65">
-          Live ESP32 readings and saves are above. Pilot fleet / footfall screens below can contain demo data; demo figures are not added to saved history.
-        </p>
-
-        {/* If Mobile Frame mode is enabled AND on a desktop screen, wrap in realistic Android phone bezel */}
-        {isMobileFrame ? (
-          <div className="w-full flex-1 flex items-center justify-center p-0 sm:py-6 overflow-hidden">
-            <div className="w-full sm:max-w-[400px] h-full sm:h-[840px] sm:max-h-[90vh] bg-[#0E1E3C] sm:border-4 sm:border-[#7FD8E8]/60 sm:rounded-[36px] flex flex-col shadow-2xl overflow-hidden relative">
-              {/* Simulated Mobile Status Bar on Hangar Navy */}
-              <div className="bg-[#0E1E3C] px-5 pt-2 pb-1 flex items-center justify-between text-[11px] font-mono text-[#F2EAD6]/80 shrink-0 z-20">
-                <span>09:41</span>
-                {/* Speaker pill notch */}
-                <div className="w-16 h-3 bg-black/40 rounded-full mx-auto" />
-                <div className="flex items-center space-x-1.5">
-                  <Radio className="w-3 h-3 text-[#7FD8E8]" />
-                  <span>5G</span>
-                  <span>94%</span>
-                </div>
+        {/* Collapsible Live ESP32 Hardware Survey Panel */}
+        {showLiveSurveyPanel && (
+          <div className="w-full bg-[#081226] border-b border-[#1E293B] p-3 shadow-inner">
+            <div className="max-w-5xl mx-auto space-y-2">
+              <div className="flex items-center justify-between font-mono text-xs">
+                <span className="text-[#38BDF8] font-bold flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4" />
+                  <span>Real-Time ESP32 Hardware Diagnostics & Sensor Reading</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowLiveSurveyPanel(false)}
+                  className="text-[#94A3B8] hover:text-white cursor-pointer"
+                >
+                  Close ✕
+                </button>
               </div>
+              <LiveSurveyPanel />
+            </div>
+          </div>
+        )}
 
-              {/* Sub-Screen Rendering */}
-              <div className="flex-1 overflow-y-auto flex flex-col relative">
-                {role === 'merchant' && <MerchantView />}
-                {(role === 'admin' || role === 'super_admin') &&
-                  (isAdminAuthenticated ? (
-                    <AdminDashboard />
-                  ) : (
-                    <div className="p-8 text-center text-[#F2EAD6]">
-                      <ShieldAlert className="w-12 h-12 text-[#F05A28] mx-auto mb-3" />
-                      <h3 className="font-michroma text-sm uppercase">AUTHENTICATION REQUIRED</h3>
-                      <p className="font-archivo text-xs text-[#F2EAD6]/70 mt-1 mb-4">
-                        Please provide your staff credentials to access Mission Control.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setAdminAuthModalOpen(true)}
-                        className="py-2.5 px-5 bg-[#F05A28] text-white font-mono text-xs font-bold uppercase cursor-pointer"
-                      >
-                        LOG IN AS STAFF
-                      </button>
-                    </div>
-                  ))}
-                {role === 'field_agent' && <FieldAgentView />}
-                {role === 'student' && <EducationView />}
-              </div>
-
-              {/* Mobile Bottom Home Indicator with Discreet Staff Trigger */}
-              <div className="h-6 bg-[#0E1E3C] flex items-center justify-between px-4 shrink-0">
-                <div className="w-10" />
-                <div className="w-24 h-1 bg-[#F2EAD6]/30 rounded-full" />
+        {/* Clean, Full-Width Responsive Screen Rendering */}
+        <div className="w-full flex-1 overflow-y-auto">
+          {role === 'field_agent' && <FieldAgentView />}
+          {role === 'merchant' && <MerchantView />}
+          {(role === 'admin' || role === 'super_admin') &&
+            (isAdminAuthenticated ? (
+              <AdminDashboard />
+            ) : (
+              <div className="p-12 text-center text-[#F2EAD6] max-w-md mx-auto my-12 bg-[#0C1628] rounded-2xl border border-[#1E293B] shadow-2xl">
+                <ShieldAlert className="w-12 h-12 text-[#F2B33D] mx-auto mb-3" />
+                <h3 className="font-mono text-base font-bold uppercase text-white">ADMIN ACCESS REQUIRED</h3>
+                <p className="font-sans text-xs text-[#94A3B8] mt-1 mb-4 leading-relaxed">
+                  Administrator password is required to access Fleet & Question configuration.
+                </p>
                 <button
                   type="button"
                   onClick={() => setAdminAuthModalOpen(true)}
-                  title="Staff Portal (Hidden)"
-                  className="text-[#F2EAD6]/20 hover:text-[#7FD8E8] text-[9px] font-mono cursor-pointer"
+                  className="py-2.5 px-6 bg-[#3B82F6] hover:bg-[#2563EB] text-white font-mono text-xs font-bold rounded-xl cursor-pointer uppercase transition-all shadow-md active:scale-95"
                 >
-                  <Terminal className="w-3 h-3" />
+                  Enter Admin Password
                 </button>
               </div>
-            </div>
-          </div>
-        ) : (
-          /* Full Desktop Width Mode */
-          <div className="w-full flex-1 overflow-y-auto">
-            {role === 'merchant' && <MerchantView />}
-            {(role === 'admin' || role === 'super_admin') &&
-              (isAdminAuthenticated ? (
-                <AdminDashboard />
-              ) : (
-                <div className="p-12 text-center text-[#F2EAD6]">
-                  <ShieldAlert className="w-12 h-12 text-[#F05A28] mx-auto mb-3" />
-                  <h3 className="font-michroma text-base uppercase">STAFF ACCESS RESTRICTED</h3>
-                  <p className="font-archivo text-xs text-[#F2EAD6]/70 mt-1 mb-4 max-w-sm mx-auto">
-                    Authorized staff credentials required to access Fleet & Unbound Session telemetry.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setAdminAuthModalOpen(true)}
-                    className="py-2.5 px-6 bg-[#F05A28] text-white font-mono text-xs font-bold uppercase cursor-pointer"
-                  >
-                    ENTER STAFF CREDENTIALS
-                  </button>
-                </div>
-              ))}
-            {role === 'field_agent' && <FieldAgentView />}
-            {role === 'student' && <EducationView />}
-          </div>
-        )}
+            ))}
+          {role === 'student' && <EducationView />}
+        </div>
       </main>
 
       {/* Floating Hardware ESP32 Testbed Simulator */}
@@ -328,6 +275,19 @@ export const MobileShell: React.FC = () => {
 
       {/* First Launch Multi-Role Picker Modal */}
       <FirstLaunchModal isOpen={firstLaunchOpen} onClose={() => setFirstLaunchOpen(false)} />
+
+      {/* Shopkeeper & Bin Allocation Modal Accessible in Operational Terminal */}
+      <ShopkeeperManagementModal
+        isOpen={shopkeeperModalOpen}
+        onClose={() => setShopkeeperModalOpen(false)}
+        currentRole={role === 'admin' || isAdminAuthenticated ? 'admin' : 'staff'}
+      />
+
+      {/* Staff Management Modal Accessible in Operational Terminal */}
+      <StaffManagementModal
+        isOpen={staffModalOpen}
+        onClose={() => setStaffModalOpen(false)}
+      />
     </div>
   );
 };

@@ -1,21 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
-  DimensionLine,
-  RubberStamp,
-  Starburst,
-  TracePathAnimation,
-} from '../common/CosmicWorkshopComponents';
+  getAllMerchants,
+  MerchantProfile,
+  fetchMerchantsFromServer,
+  performOnlineSync,
+} from '../../services/merchantSyncService';
+import { getActiveStaffSession } from '../../services/staffService';
 import {
-  AlertCircle,
-  CheckCircle2,
-  Cpu,
-  MapPin,
-  Plus,
   Radio,
   RefreshCw,
-  Search,
+  Phone,
+  Store,
+  MapPin,
+  CheckCircle2,
+  AlertTriangle,
+  Bluetooth,
+  Key,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  User,
   Wrench,
+  Search,
+  Battery,
+  Signal,
+  Cpu,
 } from 'lucide-react';
 
 export const FieldAgentView: React.FC = () => {
@@ -26,156 +37,279 @@ export const FieldAgentView: React.FC = () => {
     resolveTicket,
     startSync,
     syncState,
-    dismissVictory,
-    hardware,
+    isHardwareConnected,
+    liveReading,
+    connectDeviceBluetooth,
+    openBluetoothModal,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'nearby' | 'queue' | 'install'>('nearby');
-  const [selectedDrainSerial, setSelectedDrainSerial] = useState<string | null>(null);
-  const [installSerial, setInstallSerial] = useState('CC-BIN-06');
-  const [installLocality, setInstallLocality] = useState('Talwandi Circle');
-  const [installNotes, setInstallNotes] = useState('Mounted with steel bracket at 1.1m height.');
-  const [installSuccess, setInstallSuccess] = useState(false);
+  const [activeTab, setActiveTab] = useState<'bins' | 'shopkeepers' | 'hardware'>('bins');
+  const [selectedSerial, setSelectedSerial] = useState<string | null>(null);
+  const [merchants, setMerchants] = useState<MerchantProfile[]>(() => getAllMerchants());
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+  const [syncingSerial, setSyncingSerial] = useState<string | null>(null);
 
-  const handleDrainBin = async (serial: string) => {
-    setSelectedDrainSerial(serial);
-    await startSync(serial, 'field_agent');
+  const activeStaff = getActiveStaffSession();
+
+  useEffect(() => {
+    fetchMerchantsFromServer().then((data) => {
+      if (data && data.length > 0) setMerchants(data);
+    });
+  }, []);
+
+  const handleSyncBin = async (serial: string) => {
+    setSyncingSerial(serial);
+    setSelectedSerial(serial);
+    try {
+      const u = units.find((x) => x.serial === serial);
+      const countA = u?.counts.A || 40;
+      const countB = u?.counts.B || 25;
+      await performOnlineSync(serial, countA, countB, 'manual', 'Staff Manual Sync');
+      await startSync(serial, 'field_agent');
+      setSyncFeedback(`✓ ${serial} sync ho gaya! Data cloud me save ho gaya.`);
+      setTimeout(() => setSyncFeedback(null), 3500);
+    } catch {
+      setSyncFeedback(`Sync failed for ${serial}`);
+      setTimeout(() => setSyncFeedback(null), 3500);
+    } finally {
+      setSyncingSerial(null);
+    }
   };
 
-  const handleInstallSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setInstallSuccess(true);
-    setTimeout(() => {
-      setInstallSuccess(false);
-      setActiveTab('nearby');
-    }, 1800);
+  const handleCopyCredentials = (m: MerchantProfile) => {
+    const text = `Code & Circuit - Shopkeeper Login Details:\nWebsite: ${window.location.origin}\nUser ID (Mobile): ${m.phone}\nPassword: ${m.password || '1234'}\nAssigned Smart Bin: ${m.assignedBinSerial}\nShop: ${m.shopName}`;
+    navigator.clipboard.writeText(text);
+    setCopiedId(m.id);
+    setTimeout(() => setCopiedId(null), 2500);
   };
+
+  const filteredShopkeepers = merchants.filter(
+    (m) =>
+      m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.shopName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.phone.includes(searchQuery) ||
+      m.assignedBinSerial.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.locality.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="flex flex-col h-full bg-blueprint-grid text-[#F2EAD6] overflow-y-auto pb-20">
-      {/* Field Agent App Bar */}
-      <div className="bg-[#0E1E3C] border-b border-[#7FD8E8]/40 px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div>
-            <h2 className="font-michroma text-xs text-[#F2EAD6] uppercase tracking-wide">
-              FIELD AGENT COURIER & SERVICE
-            </h2>
-            <span className="font-mono text-[9px] text-[#7FD8E8]">
-              COURIER ID: FA-MANOJ-01 · RESCUE MODE ARMED
-            </span>
-          </div>
-          <RubberStamp status="FIELD TESTED" size="sm" />
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="bg-[#0E1E3C]/80 border-b border-[#7FD8E8]/20 px-4">
-        <div className="max-w-md mx-auto grid grid-cols-3 text-center font-mono text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveTab('nearby')}
-            className={`py-2 border-b-2 font-bold uppercase transition-colors cursor-pointer ${
-              activeTab === 'nearby'
-                ? 'border-[#F05A28] text-[#F05A28]'
-                : 'border-transparent text-[#F2EAD6]/60 hover:text-[#F2EAD6]'
-            }`}
-          >
-            NEARBY BLE ({units.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('queue')}
-            className={`py-2 border-b-2 font-bold uppercase transition-colors cursor-pointer ${
-              activeTab === 'queue'
-                ? 'border-[#F05A28] text-[#F05A28]'
-                : 'border-transparent text-[#F2EAD6]/60 hover:text-[#F2EAD6]'
-            }`}
-          >
-            SERVICE QUEUE ({tickets.filter((t) => t.status !== 'resolved').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('install')}
-            className={`py-2 border-b-2 font-bold uppercase transition-colors cursor-pointer ${
-              activeTab === 'install'
-                ? 'border-[#F05A28] text-[#F05A28]'
-                : 'border-transparent text-[#F2EAD6]/60 hover:text-[#F2EAD6]'
-            }`}
-          >
-            INSTALL BIN
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-md mx-auto w-full p-4 space-y-4">
-        {/* ================= TAB 1: NEARBY UNITS (RESCUE DRAIN) ================= */}
-        {activeTab === 'nearby' && (
-          <div className="space-y-3">
-            <div className="p-3 bg-[#0E1E3C] border border-[#7FD8E8]/30 text-xs">
-              <span className="font-mono text-[10px] text-[#7FD8E8] uppercase block font-semibold mb-1">
-                UNIVERSAL COURIER PRINCIPLE (SECTION 9):
-              </span>
-              <p className="font-archivo text-[#F2EAD6]/80 text-[11px] leading-snug">
-                "Any authorised phone can drain any bin. A field agent walking past another merchant's bin can sync it. The sync batch records who carried it — insurance against a merchant's phone dying."
+    <div className="flex flex-col h-full bg-[#070D18] text-[#F2EAD6] overflow-y-auto pb-16 font-sans">
+      {/* Clean, Streamlined Staff App Bar */}
+      <div className="bg-[#0C1628] border-b border-[#1E293B] px-4 py-3 sticky top-0 z-20 shadow-md">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-[#1F8F82]/20 border border-[#1F8F82]/50 text-[#1F8F82] rounded-xl">
+              <Wrench className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-sm text-white font-mono uppercase tracking-wide">
+                  Staff Field Operations
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#1F8F82]/20 text-[#1F8F82] border border-[#1F8F82]/30 font-mono">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="text-[11px] text-[#94A3B8] font-mono mt-0.5">
+                Staff: <b className="text-white">{activeStaff?.name || 'Manoj Kumar (Field Agent)'}</b> · Mobile: {activeStaff?.mobile || '9829011420'}
               </p>
             </div>
+          </div>
 
-            {/* In-flight Trace Path Animation */}
-            {syncState.active && (
-              <TracePathAnimation
-                phase={syncState.phase}
-                batchCount={syncState.lastBatchCount}
-              />
-            )}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openBluetoothModal()}
+              className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-sm ${
+                isHardwareConnected
+                  ? 'bg-[#10B981] text-black'
+                  : 'bg-[#1E293B] hover:bg-[#334155] text-[#38BDF8] border border-[#38BDF8]/40'
+              }`}
+            >
+              <Bluetooth className={`w-3.5 h-3.5 ${isHardwareConnected ? '' : 'animate-pulse'}`} />
+              <span>{isHardwareConnected ? 'ESP32 Connected' : 'Scan BLE Bin'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
 
-            {/* List of nearby bins */}
-            <div className="space-y-2.5">
+      {/* Sync Feedback Alert */}
+      {syncFeedback && (
+        <div className="bg-[#10B981] text-black px-4 py-2 font-mono text-xs font-bold text-center flex items-center justify-center gap-2 shadow-lg sticky top-[57px] z-30 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{syncFeedback}</span>
+        </div>
+      )}
+
+      {/* Clean, Spacious Navigation Tabs */}
+      <div className="bg-[#0C1628]/80 border-b border-[#1E293B] px-4">
+        <div className="max-w-4xl mx-auto flex items-center gap-2 font-mono text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab('bins')}
+            className={`py-3 px-3.5 border-b-2 font-bold flex items-center gap-2 transition-colors cursor-pointer ${
+              activeTab === 'bins'
+                ? 'border-[#10B981] text-[#10B981]'
+                : 'border-transparent text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            <Radio className="w-4 h-4" />
+            <span>Smart Bins ({units.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('shopkeepers')}
+            className={`py-3 px-3.5 border-b-2 font-bold flex items-center gap-2 transition-colors cursor-pointer ${
+              activeTab === 'shopkeepers'
+                ? 'border-[#F2B33D] text-[#F2B33D]'
+                : 'border-transparent text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            <Store className="w-4 h-4" />
+            <span>Shopkeeper Contacts ({merchants.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('hardware')}
+            className={`py-3 px-3.5 border-b-2 font-bold flex items-center gap-2 transition-colors cursor-pointer ${
+              activeTab === 'hardware'
+                ? 'border-[#38BDF8] text-[#38BDF8]'
+                : 'border-transparent text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            <span>Hardware Service</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="max-w-4xl mx-auto w-full p-4 sm:p-6 space-y-4">
+        {/* ================= TAB 1: SMART BINS & LIVE SYNC ================= */}
+        {activeTab === 'bins' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+              <div>
+                <h2 className="text-base font-bold text-white font-mono">
+                  Kota Smart Bins Fleet Status
+                </h2>
+                <p className="text-xs text-[#94A3B8]">
+                  Sabhi smart bins ke live vote counts dekhein aur field me on-site sync karein.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-mono text-[#94A3B8]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] inline-block animate-pulse" />
+                <span>5 Bins Active in Kota</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {units.map((u) => {
                 const loc = locations.find((l) => l.id === u.location_id);
-                const isSelected = selectedDrainSerial === u.serial;
+                const assignedMerchant = merchants.find(
+                  (m) => m.assignedBinSerial.toLowerCase() === u.serial.toLowerCase()
+                );
+                const totalVotes = u.counts.A + u.counts.B;
+                const isSyncing = syncingSerial === u.serial;
 
                 return (
                   <div
                     key={u.serial}
-                    className="p-3.5 bg-[#0E1E3C]/90 border border-[#7FD8E8]/40 hover:border-[#7FD8E8] transition-all"
+                    className="bg-[#0C1628] border border-[#1E293B] hover:border-[#38BDF8]/60 rounded-2xl p-4 shadow-lg transition-all space-y-3"
                   >
-                    <div className="flex items-start justify-between">
+                    {/* Top Row: Serial & Status */}
+                    <div className="flex items-start justify-between gap-2 border-b border-[#1E293B] pb-2.5">
                       <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-michroma text-xs text-[#F2EAD6]">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-white text-sm">
                             {u.serial}
                           </span>
-                          <span className="font-mono text-[10px] text-[#7FD8E8]">
-                            RSSI -62 dBm
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 font-mono">
+                            HEALTHY
                           </span>
                         </div>
-                        <span className="font-archivo text-xs text-[#F2EAD6]/80 block mt-0.5">
-                          {loc?.name || 'Unassigned / Warehouse'}
-                        </span>
-                        <span className="font-mono text-[10px] text-[#F2B33D] block mt-0.5">
-                          TODAY: {u.counts.A + u.counts.B} votes · SES #{u.current_session_id}
-                        </span>
+                        <div className="text-xs text-[#94A3B8] font-sans mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#F2B33D] shrink-0" />
+                          <span>{loc?.name || assignedMerchant?.locality || 'Kota Landmark'}</span>
+                        </div>
                       </div>
 
-                      <RubberStamp
-                        status={u.current_status === 'Healthy' ? 'HEALTHY' : 'PENDING'}
-                        size="sm"
-                      />
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-[#94A3B8]">
+                        <span className="flex items-center gap-1 text-[#10B981]">
+                          <Battery className="w-3.5 h-3.5" /> 88%
+                        </span>
+                        <span className="flex items-center gap-1 text-[#38BDF8]">
+                          <Signal className="w-3.5 h-3.5" /> -62dBm
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-[#7FD8E8]/20 flex items-center justify-between">
-                      <span className="font-mono text-[9px] text-[#7FD8E8]/70">
-                        LAST SYNC: {new Date(u.last_sync_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                    {/* Assigned Shopkeeper Info */}
+                    <div className="p-2.5 bg-[#070D18] rounded-xl border border-[#1E293B] flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <Store className="w-4 h-4 text-[#F2B33D] shrink-0" />
+                        <div>
+                          <span className="text-white font-bold block text-[11px]">
+                            {assignedMerchant?.shopName || 'Assigned Stall'}
+                          </span>
+                          <span className="text-[10px] text-[#94A3B8]">
+                            Dukandar: {assignedMerchant?.name || 'Local Partner'}
+                          </span>
+                        </div>
+                      </div>
+                      {assignedMerchant?.phone && (
+                        <a
+                          href={`tel:${assignedMerchant.phone}`}
+                          className="px-2 py-1 bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] rounded-lg font-mono text-[11px] font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Phone className="w-3 h-3" />
+                          <span>Call</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Live Vote Counts Bar */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between font-mono text-xs">
+                        <span className="text-[#94A3B8]">Today's Votes:</span>
+                        <span className="text-[#F2B33D] font-bold">{totalVotes} Total Votes</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-center font-mono text-xs">
+                        <div className="bg-[#1E293B]/60 p-2 rounded-lg border border-[#334155]">
+                          <span className="text-[10px] text-[#38BDF8] block">OPTION A (LEFT)</span>
+                          <span className="text-sm font-bold text-white">{u.counts.A}</span>
+                        </div>
+                        <div className="bg-[#1E293B]/60 p-2 rounded-lg border border-[#334155]">
+                          <span className="text-[10px] text-[#F05A28] block">OPTION B (RIGHT)</span>
+                          <span className="text-sm font-bold text-white">{u.counts.B}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-1 flex items-center gap-2 font-mono text-xs">
+                      <button
+                        type="button"
+                        onClick={() => openBluetoothModal()}
+                        className="flex-1 py-2 bg-[#1E293B] hover:bg-[#334155] text-white rounded-xl font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors border border-[#334155]"
+                      >
+                        <Bluetooth className="w-3.5 h-3.5 text-[#38BDF8]" />
+                        <span>Connect BLE</span>
+                      </button>
 
                       <button
                         type="button"
-                        disabled={syncState.active}
-                        onClick={() => handleDrainBin(u.serial)}
-                        className="py-1.5 px-3 bg-[#F05A28] hover:bg-[#d84818] text-[#F2EAD6] font-mono text-xs font-bold uppercase transition-all cursor-pointer flex items-center space-x-1.5"
+                        disabled={isSyncing}
+                        onClick={() => handleSyncBin(u.serial)}
+                        className="flex-1 py-2 bg-[#10B981] hover:bg-[#059669] text-black font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 disabled:opacity-50"
                       >
-                        <RefreshCw className={`w-3.5 h-3.5 ${syncState.active && isSelected ? 'animate-spin' : ''}`} />
-                        <span>RESCUE DRAIN</span>
+                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                        <span>{isSyncing ? 'Syncing...' : 'Sync to Cloud'}</span>
                       </button>
                     </div>
                   </div>
@@ -185,132 +319,211 @@ export const FieldAgentView: React.FC = () => {
           </div>
         )}
 
-        {/* ================= TAB 2: FIELD SERVICE QUEUE ================= */}
-        {activeTab === 'queue' && (
-          <div className="space-y-3">
-            <h3 className="font-michroma text-xs text-[#F2EAD6] uppercase">
-              ASSIGNED FIELD REPAIRS & INSPECTIONS
-            </h3>
-
-            {tickets.map((t) => (
-              <div
-                key={t.id}
-                className="p-3.5 bg-[#0E1E3C] border border-[#F05A28]/50 space-y-2 text-xs"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-bold text-[#F2EAD6]">
-                    TICKET #{t.id} · {t.unit_serial}
-                  </span>
-                  <RubberStamp status={t.status === 'resolved' ? 'FIELD TESTED' : 'PENDING'} size="sm" />
-                </div>
-
-                <div className="font-archivo text-xs text-[#F2EAD6]/90">
-                  <b>Location:</b> {t.location_name}
-                </div>
-                <div className="font-archivo text-xs text-[#F05A28] font-bold uppercase">
-                  Issue: {t.issue_type.replace('_', ' ')}
-                </div>
-                <p className="font-archivo text-[11px] text-[#F2EAD6]/80 italic">
-                  "{t.notes}"
+        {/* ================= TAB 2: SHOPKEEPER DIRECTORY & PASSWORDS ================= */}
+        {activeTab === 'shopkeepers' && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-1">
+              <div>
+                <h2 className="text-base font-bold text-white font-mono">
+                  Shopkeeper Directory & Login Passwords
+                </h2>
+                <p className="text-xs text-[#94A3B8]">
+                  Sabhi dukandaron ke phone number, assigned bin aur unka login password yahan dekhein.
                 </p>
-
-                {t.status !== 'resolved' ? (
-                  <button
-                    type="button"
-                    onClick={() => resolveTicket(t.id, 'Inspected and cleared on-site by Manoj.')}
-                    className="w-full py-2 mt-1 bg-[#1F8F82] hover:bg-[#18756a] text-white font-mono text-xs font-bold uppercase cursor-pointer"
-                  >
-                    MARK REPAIR COMPLETE
-                  </button>
-                ) : (
-                  <div className="p-1.5 bg-[#1F8F82]/20 text-[#1F8F82] text-center font-mono text-[10px] font-bold">
-                    RESOLVED & VERIFIED ON-SITE
-                  </div>
-                )}
               </div>
-            ))}
+
+              <button
+                type="button"
+                onClick={() => setShowPasswords(!showPasswords)}
+                className="px-3 py-1.5 bg-[#1E293B] hover:bg-[#334155] text-[#38BDF8] rounded-xl font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer border border-[#334155]"
+              >
+                {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5 text-[#F2B33D]" />}
+                <span>{showPasswords ? 'Hide Passwords' : 'Show Login Passwords'}</span>
+              </button>
+            </div>
+
+            {/* Search filter */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
+              <input
+                type="text"
+                placeholder="Search shopkeeper by name, shop, phone or bin..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#0C1628] border border-[#334155] rounded-xl pl-9 pr-4 py-2.5 text-white font-mono text-xs outline-none focus:border-[#F2B33D]"
+              />
+            </div>
+
+            {/* Shopkeeper Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredShopkeepers.map((m) => (
+                <div
+                  key={m.id}
+                  className="bg-[#0C1628] border border-[#1E293B] hover:border-[#F2B33D]/60 rounded-2xl p-4 shadow-lg space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-2 border-b border-[#1E293B] pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs text-[#F2B33D] font-bold">
+                        <Store className="w-3.5 h-3.5" />
+                        <span>{m.shopName}</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-white mt-0.5">
+                        {m.name}
+                      </h3>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 font-mono text-xs font-bold">
+                        <Radio className="w-3 h-3" />
+                        <span>{m.assignedBinSerial}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Location */}
+                  <div className="text-xs text-[#94A3B8] flex items-start gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-[#F2B33D] shrink-0 mt-0.5" />
+                    <span>{m.locality}</span>
+                  </div>
+
+                  {/* Login Credentials Box */}
+                  <div className="p-3 bg-[#070D18] rounded-xl border border-[#334155]/60 space-y-1.5 font-mono text-xs">
+                    <div className="flex items-center justify-between text-[#94A3B8] text-[11px]">
+                      <span>Shopkeeper Login ID:</span>
+                      <span className="text-white font-bold">{m.phone}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[#94A3B8] flex items-center gap-1">
+                        <Key className="w-3 h-3 text-[#F2B33D]" />
+                        <span>Login Password:</span>
+                      </span>
+                      <span className="font-bold text-[#F2B33D]">
+                        {showPasswords ? m.password || '1234' : '••••••••'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions: Call & Copy Credentials */}
+                  <div className="flex items-center gap-2 pt-1 font-mono text-xs">
+                    <a
+                      href={`tel:${m.phone}`}
+                      className="flex-1 py-2 bg-[#10B981]/20 hover:bg-[#10B981]/30 text-[#10B981] rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors border border-[#10B981]/30"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Call ({m.phone})</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCredentials(m)}
+                      className="px-3 py-2 bg-[#1E293B] hover:bg-[#334155] text-white rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition-colors border border-[#334155]"
+                      title="Copy login details to send to shopkeeper via WhatsApp or SMS"
+                    >
+                      {copiedId === m.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-[#10B981]" />
+                          <span className="text-[#10B981]">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-[#94A3B8]" />
+                          <span>Copy Login Info</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ================= TAB 3: INSTALL & DEPLOYMENT WIZARD ================= */}
-        {activeTab === 'install' && (
-          <div className="bg-[#0E1E3C] border-2 border-[#7FD8E8] p-4 text-xs font-archivo space-y-3">
-            <h3 className="font-michroma text-xs text-[#F2EAD6] uppercase">
-              NEW UNIT DEPLOYMENT WIZARD
-            </h3>
-            <p className="text-[11px] text-[#F2EAD6]/80">
-              Mount physical unit at merchant site, log GPS lock, and release per-device encryption secret to merchant phone.
-            </p>
-
-            {installSuccess ? (
-              <div className="py-8 text-center text-[#1F8F82]">
-                <CheckCircle2 className="w-10 h-10 mx-auto mb-2" />
-                <h4 className="font-michroma text-sm uppercase">DEPLOYMENT REGISTERED</h4>
-                <p className="font-mono text-xs text-[#7FD8E8] mt-1">
-                  Unit {installSerial} bound to {installLocality}
-                </p>
+        {/* ================= TAB 3: HARDWARE SERVICE & REPAIRS ================= */}
+        {activeTab === 'hardware' && (
+          <div className="space-y-4 font-mono text-xs">
+            <div className="p-4 bg-[#0C1628] border border-[#1E293B] rounded-2xl space-y-3">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Bluetooth className="w-4 h-4 text-[#38BDF8]" />
+                <span>On-Site Physical ESP32 Hardware Diagnostics</span>
               </div>
-            ) : (
-              <form onSubmit={handleInstallSubmit} className="space-y-3">
-                <div>
-                  <label className="block font-mono text-[10px] text-[#7FD8E8] uppercase mb-1">
-                    UNIT SERIAL NUMBER
-                  </label>
-                  <input
-                    type="text"
-                    value={installSerial}
-                    onChange={(e) => setInstallSerial(e.target.value)}
-                    className="w-full bg-[#16336E] border border-[#7FD8E8]/40 p-2 font-mono text-xs text-[#F2EAD6]"
-                  />
-                </div>
+              <p className="text-[#94A3B8] font-sans text-xs">
+                Agar aap dukan par physical SmartBin ke paas khade hain, to direct Bluetooth ya Wi-Fi se connect karke counter test karein.
+              </p>
 
-                <div>
-                  <label className="block font-mono text-[10px] text-[#7FD8E8] uppercase mb-1">
-                    SHOP OUTLET / LOCALITY
-                  </label>
-                  <input
-                    type="text"
-                    value={installLocality}
-                    onChange={(e) => setInstallLocality(e.target.value)}
-                    className="w-full bg-[#16336E] border border-[#7FD8E8]/40 p-2 font-archivo text-xs text-[#F2EAD6]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-mono text-[10px] text-[#7FD8E8] uppercase mb-1">
-                    INSTALLATION NOTES & BRACKET FIXING
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={installNotes}
-                    onChange={(e) => setInstallNotes(e.target.value)}
-                    className="w-full bg-[#16336E] border border-[#7FD8E8]/40 p-2 font-archivo text-xs text-[#F2EAD6] resize-none"
-                  />
-                </div>
-
-                <div className="p-2 border border-[#7FD8E8]/20 bg-[#16336E]/40 font-mono text-[10px] text-[#7FD8E8]">
-                  GPS LOCK: 25.1528° N, 75.8427° E (ACCURACY: ±3M)
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <button
-                  type="submit"
-                  className="w-full py-2.5 bg-[#F05A28] hover:bg-[#d84818] text-[#F2EAD6] font-archivo font-bold text-xs uppercase tracking-wider cursor-pointer"
+                  type="button"
+                  onClick={() => openBluetoothModal()}
+                  className="p-3 bg-[#1E293B] hover:bg-[#334155] rounded-xl border border-[#38BDF8]/40 text-left flex items-center justify-between cursor-pointer"
                 >
-                  CONFIRM & ACTIVATE DEPLOYMENT
+                  <div>
+                    <span className="text-white font-bold block">1. Bluetooth Web Scan</span>
+                    <span className="text-[10px] text-[#94A3B8]">Nearby ESP32 SmartBins search karein</span>
+                  </div>
+                  <Bluetooth className="w-5 h-5 text-[#38BDF8]" />
                 </button>
-              </form>
-            )}
+
+                <div className="p-3 bg-[#070D18] rounded-xl border border-[#334155] flex items-center justify-between">
+                  <div>
+                    <span className="text-white font-bold block">2. Hotspot IP Direct</span>
+                    <span className="text-[10px] text-[#94A3B8]">http://192.168.4.1/readings</span>
+                  </div>
+                  <span className="text-[10px] bg-[#10B981]/20 text-[#10B981] px-2 py-0.5 rounded font-bold">
+                    READY
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Field Tickets */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-white text-sm">
+                  Active Service Tickets ({tickets.length})
+                </h3>
+                <span className="text-[#94A3B8] text-[11px]">Reported by shopkeepers</span>
+              </div>
+
+              {tickets.map((t) => (
+                <div
+                  key={t.id}
+                  className="p-4 bg-[#0C1628] border border-[#334155] rounded-xl space-y-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-xs">
+                      {t.unit_serial} · {t.location_name}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        t.status === 'resolved'
+                          ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30'
+                          : 'bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/30'
+                      }`}
+                    >
+                      {t.status === 'resolved' ? 'RESOLVED' : 'PENDING ACTION'}
+                    </span>
+                  </div>
+
+                  <p className="text-[#94A3B8] font-sans text-xs">
+                    Issue: <b className="text-white">{t.issue_type.replace('_', ' ')}</b> — "{t.notes}"
+                  </p>
+
+                  {t.status !== 'resolved' && (
+                    <button
+                      type="button"
+                      onClick={() => resolveTicket(t.id, 'Inspected and verified on-site by field staff.')}
+                      className="w-full py-2 bg-[#1F8F82] hover:bg-[#18756a] text-white font-bold rounded-lg cursor-pointer transition-colors"
+                    >
+                      ✓ Mark Ticket Resolved (समस्या ठीक हो गई)
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
-
-      {syncState.showVictory && (
-        <Starburst
-          message="BIN DRAINED BY COURIER"
-          submessage={`${syncState.lastBatchCount} votes transferred into cloud.`}
-          onDismiss={dismissVictory}
-        />
-      )}
     </div>
   );
 };
