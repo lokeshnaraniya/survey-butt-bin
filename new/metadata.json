@@ -1,0 +1,9 @@
+{
+  "name": "Code & Circuit Survey Bin",
+  "description": "Cosmic Workshop mobile-first IoT telemetry platform for Code & Circuit survey bins, BLE offline couriers, and admin fleet management.",
+  "requestFramePermissions": [
+    "bluetooth",
+    "serial"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
